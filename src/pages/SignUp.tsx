@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from 'react-hook-form';
 import { useMutation } from "@tanstack/react-query";
+import Navigation from '../components/Navigation';
+
 
 interface SignUpFormData {
     email: string;
@@ -56,12 +58,13 @@ const SignUp = () => {
 
   return (
     <div>
-        <nav style={{ padding: '20px', background: '#eee' }}>
-            {/* href 대신 to를 사용합니다 */}
-            <Link to="/" style={{ marginRight: '10px' }}>홈</Link>
-            <Link to="/login" style={{ marginRight: '10px' }}>로그인</Link>
-            <Link to="/signup" style={{ marginRight: '10px' }}>회원가입</Link>
-        </nav>
+
+          <Navigation/>
+    {/* <nav style={{ padding: '20px', background: '#eee' }}>
+      <Link to="/" style={{ marginRight: '10px' }}>홈</Link>
+      <Link to="/login" style={{ marginRight: '10px' }}>로그인</Link>
+      <Link to="/signup" style={{ marginRight: '10px' }}>회원가입</Link>
+    </nav> */}
         
         {/* 폼~~ */}
 

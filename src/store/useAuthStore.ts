@@ -1,15 +1,12 @@
 import { create } from 'zustand';
 
-interface UIState {
-  viewMode: 'list' | 'grid';
-  setViewMode: () => void;
+interface authState {
+  accessToken: string | null;
+  setAccessToken: (token: string | null) => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
-  viewMode: 'list',
-  setViewMode: () =>
-    set((state) => ({
-      viewMode: state.viewMode === 'list' ? 'grid' : 'list',
-    })),
+export const useAuthStore = create<authState>((set) => ({
+  accessToken: null,
+  setAccessToken: (token) => set({ accessToken: token }),
 }));
 

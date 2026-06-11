@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
-import { useUIStore } from './store/useUIStore';
-import { Link } from 'react-router-dom';
+import { useQuery } from "@tanstack/react-query";
+import { useUIStore } from "./store/useUIStore";
+import { Link } from "react-router-dom";
+import { useAuthStore } from "./store/useAuthStore";
+import Navigation from "./components/Navigation";
 
 // 백엔드의 Entity/DTO와 동일한 타입
-interface Product {
+export interface Product {
   id: number;
   title: string;
   price: number;
@@ -15,11 +17,15 @@ function App() {
   const { viewMode, toggleViewMode } = useUIStore();
 
   // 2. React Query로 서버 상태 가져오기 (Nest.js 백엔드 호출)
-  const { data: products, isLoading, isError } = useQuery<Product[]>({
-    queryKey: ['products'], // 이 데이터의 고유 이름 (캐싱에 사용됨)
+  const {
+    data: products,
+    isLoading,
+    isError,
+  } = useQuery<Product[]>({
+    queryKey: ["products"], // 이 데이터의 고유 이름 (캐싱에 사용됨)
     queryFn: async () => {
-      const res = await fetch('http://localhost:1111/products');
-      if (!res.ok) throw new Error('네트워크 응답이 좋지 않습니다.');
+      const res = await fetch("http://localhost:1111/products");
+      if (!res.ok) throw new Error("네트워크 응답이 좋지 않습니다.");
       return res.json();
     },
   });
@@ -29,31 +35,30 @@ function App() {
   if (isError) return <h2>에러가 발생했습니다! 서버를 확인해주세요.</h2>;
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: "20px" }}>
+      <Navigation />
 
-    <nav style={{ padding: '20px', background: '#eee' }}>
-      {/* href 대신 to를 사용합니다 */}
-      <Link to="/" style={{ marginRight: '10px' }}>홈</Link>
-      <Link to="/login" style={{ marginRight: '10px' }}>로그인</Link>
-      <Link to="/signup" style={{ marginRight: '10px' }}>회원가입</Link>
-    </nav>
-    
       <h1>중고 마켓 상품 리스트</h1>
 
       {/* Zustand 전역 상태를 변경하는 버튼 */}
-      <button onClick={toggleViewMode} style={{ marginBottom: '20px' }}>
-        현재 모드: {viewMode === 'list' ? '목록형' : '격자형'} (클릭해서 변경)
+      <button onClick={toggleViewMode} style={{ marginBottom: "20px" }}>
+        현재 모드: {viewMode === "list" ? "목록형" : "격자형"} (클릭해서 변경)
       </button>
 
-      <div style={{
-        display: viewMode === 'grid' ? 'grid' : 'block',
-        gridTemplateColumns: '1fr 1fr 1fr',
-        gap: '10px'
-      }}>
+      <div
+        style={{
+          display: viewMode === "grid" ? "grid" : "block",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: "10px",
+        }}
+      >
         {products?.map((product) => (
-          <div key={product.id} style={{ border: '1px solid #ccc', padding: '10px' }}>
+          <div
+            key={product.id}
+            style={{ border: "1px solid #ccc", padding: "10px" }}
+          >
             <h3>{product.title}</h3>
-            <p style={{ fontWeight: 'bold' }}>{product.price}원</p>
+            <p style={{ fontWeight: "bold" }}>{product.price}원</p>
             <p>{product.description}</p>
           </div>
         ))}
@@ -63,8 +68,6 @@ function App() {
 }
 
 export default App;
-
-
 
 // import type { FormEvent } from 'react';
 // import './App.css';
