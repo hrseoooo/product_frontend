@@ -1,0 +1,214 @@
+.product-table-container {
+  width: 100%;
+  overflow-x: auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.product-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+  color: #333;
+}
+
+.product-table th {
+  background: #f8f9fa;
+  color: #555;
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e9ecef;
+  white-space: nowrap;
+}
+
+.product-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e9ecef;
+  vertical-align: middle;
+}
+
+/* 마스터 행 */
+.master-row {
+  background: white;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.master-row:hover {
+  background: #f1f5f9;
+}
+
+.expand-cell {
+  text-align: center;
+  cursor: pointer;
+}
+
+.expand-btn {
+  background: #475569;
+  color: white;
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.expand-btn:hover {
+  background: #334155;
+}
+
+.product-code {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-thumb, .table-thumb-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+}
+
+.table-thumb-placeholder {
+  background: #f1f5f9;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.title-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title-text {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.title-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.brand-badge {
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.link-count-badge {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.link-none-badge {
+  color: #94a3b8;
+}
+
+.price-cell {
+  font-weight: 700;
+}
+
+.stock-cell {
+  font-weight: 700;
+}
+
+/* 슬레이브 행 */
+.slave-row {
+  background: #f8fafc;
+}
+
+.slave-row td {
+  border-bottom: 1px solid #f1f5f9;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.slave-code-cell {
+  color: #3b82f6;
+  font-size: 12px;
+}
+
+.slave-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 20px;
+}
+
+.slave-branch-icon {
+  color: #94a3b8;
+}
+
+.slave-title-text {
+  color: #475569;
+}
+
+.mall-info-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.mall-type {
+  font-size: 10px;
+  background: #e2e8f0;
+  color: #475569;
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.mall-name {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.slave-price-cell {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.status-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-badge.selling {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.slave-category-cell, .slave-shipping-cell {
+  color: #64748b;
+}
+
+.slave-stock-cell {
+  color: #475569;
+}

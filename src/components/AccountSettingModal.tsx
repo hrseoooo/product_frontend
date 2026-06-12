@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import Swal from "sweetalert2";
 import api from "../api/axios";
 import "./AccountSettingModal.css";
 
 interface AccountForm {
   mallType: string;
   accountName: string;
-  sellerId: string;
+  loginId?: string;
+  loginPassword?: string;
+  apiKey?: string;
+  etc1?: string;
+  etc2?: string;
+  etc3?: string;
 }
 
 interface Props {
@@ -36,11 +42,21 @@ export default function AccountSettingModal({ isOpen, onClose }: Props) {
   const onSubmit = async (data: AccountForm) => {
     try {
       await api.post("/mall-account", data);
-      alert("계정이 연동되었습니다.");
+      Swal.fire({
+        title: "연동 완료",
+        text: "쇼핑몰 계정이 성공적으로 연동되었습니다.",
+        icon: "success",
+        confirmButtonColor: "#3b82f6",
+      });
       reset();
       fetchAccounts();
     } catch (error) {
-      alert("연동 실패!");
+      Swal.fire({
+        title: "연동 실패",
+        text: "계정 연동 중 오류가 발생했습니다.",
+        icon: "error",
+        confirmButtonColor: "#ef4444",
+      });
     }
   };
 
@@ -54,31 +70,51 @@ export default function AccountSettingModal({ isOpen, onClose }: Props) {
         </button>
 
         {/* 계정 등록 폼 */}
-        <div className="modal-section">
+        <div className="modal-section" style={{ overflowY: "auto", maxHeight: "500px" }}>
           <h2 className="modal-title">새 계정 연동</h2>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="form-group">
-              <label className="form-label">쇼핑몰 선택</label>
+              <label className="form-label">쇼핑몰 선택 <span style={{color:"red"}}>*</span></label>
               <select {...register("mallType")} className="form-input">
                 <option value="COUPANG">쿠팡</option>
                 <option value="SMARTSTORE">스마트스토어</option>
+                <option value="CAFE24">카페24</option>
+                <option value="11ST">11번가</option>
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">계정 별칭</label>
+              <label className="form-label">계정 별칭 <span style={{color:"red"}}>*</span></label>
               <input
-                {...register("accountName")}
+                {...register("accountName", { required: true })}
                 className="form-input"
                 placeholder="예: 쿠팡 부계정"
               />
             </div>
             <div className="form-group">
-              <label className="form-label">판매자 ID (또는 API Key)</label>
-              <input {...register("sellerId")} className="form-input" />
+              <label className="form-label">쇼핑몰 ID (선택)</label>
+              <input {...register("loginId")} className="form-input" />
             </div>
-            <button type="submit" className="submit-btn">
-              연동하기
-            </button>
+            <div className="form-group">
+              <label className="form-label">쇼핑몰 비밀번호 (선택)</label>
+              <input type="password" {...register("loginPassword")} className="form-input" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">API Key (선택)</label>
+              <input {...register("apiKey")} className="form-input" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">추가 정보 1 (ETC1)</label>
+              <input {...register("etc1")} className="form-input" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">추가 정보 2 (ETC2)</label>
+              <input {...register("etc2")} className="form-input" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">추가 정보 3 (ETC3)</label>
+              <input {...register("etc3")} className="form-input" />
+            </div>
+            <button type="submit" className="submit-btn">연동하기</button>
           </form>
         </div>
 
@@ -96,10 +132,8 @@ export default function AccountSettingModal({ isOpen, onClose }: Props) {
                     <span className="account-name">{acc.accountName}</span>
                   </div>
                   <div className="account-info-sub">
-                    {/* <span className="account-id-label">계정 ID</span> */}
-                    <span className="account-id-value">
-                      {acc.sellerId || acc.loginId || "없음"}
-                    </span>
+                    <span className="account-id-label">계정 ID</span>
+                    <span className="account-id-value">{acc.loginId || acc.apiKey || '없음'}</span>
                   </div>
                 </li>
               ))

@@ -1,0 +1,161 @@
+.detail-loading,
+.detail-error {
+  text-align: center;
+  margin-top: 100px;
+  font-size: 18px;
+  color: #64748b;
+}
+
+.detail-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.detail-header {
+  display: flex;
+  gap: 40px;
+  background: white;
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+@media (max-width: 768px) {
+  .detail-header {
+    flex-direction: column;
+  }
+}
+
+.detail-image-section {
+  flex: 1;
+  max-width: 400px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.detail-image-section .product-image-slider {
+  height: auto;
+  aspect-ratio: 3 / 4;
+}
+
+.detail-info-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  color: #0f172a;
+}
+
+.detail-price {
+  font-size: 24px;
+  font-weight: 600;
+  color: #3b82f6;
+  margin: 0 0 32px 0;
+}
+
+.detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 24px 0;
+  margin-bottom: 32px;
+}
+
+.meta-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+}
+
+.meta-label {
+  color: #64748b;
+}
+
+.meta-value {
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.detail-malls h3 {
+  font-size: 16px;
+  color: #0f172a;
+  margin-bottom: 12px;
+}
+
+.mall-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mall-badge {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.detail-description,
+.detail-notice {
+  background: white;
+  padding: 40px;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.detail-description h2,
+.detail-notice h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 24px 0;
+  color: #0f172a;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 12px;
+}
+
+.froala-content {
+  line-height: 1.8;
+  color: #334155;
+}
+
+.notice-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.notice-table th,
+.notice-table td {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.notice-table th {
+  width: 30%;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+}
+
+.notice-table td {
+  color: #1e293b;
+}

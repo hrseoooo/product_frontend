@@ -17,9 +17,9 @@ const Navigation = () => {
   return (
     <>
       <nav className="main-nav">
-        <Link to="/" className="nav-logo">
+        <a href="/" className="nav-logo">
           rin
-        </Link>
+        </a>
 
         <div className="nav-links">
           {accessToken ? (
