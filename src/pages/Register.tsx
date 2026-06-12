@@ -1,21 +1,23 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Product } from "../App";
 import type { FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import Navigation from "../components/Navigation";
 import { useAuthStore } from "../store/useAuthStore";
+import Swal from "sweetalert2";
 
 const Register = () => {
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((state) => state.accessToken);
+  const navigate = useNavigate();
 
   const mutation = useMutation({
-    mutationFn: async (newProduct: Omit<Product, "id" | "createdAt">) => {
+    mutationFn: async (newProduct: Omit<Product, "id">) => {
       const response = await fetch("http://localhost:1111/products", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`, // 토큰을 헤더에 포함
-          // Authorization : 'Bearer' + accessToken
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(newProduct),
       });
@@ -27,6 +29,17 @@ const Register = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["products"],
+      });
+      Swal.fire({
+        title: "PRODUCT ADDED",
+        text: "상품이 성공적으로 등록되었습니다.",
+        customClass: {
+          popup: "minimal-swal",
+          confirmButton: "minimal-confirm",
+        },
+        buttonsStyling: false,
+      }).then(() => {
+        navigate("/");
       });
     },
   });
@@ -43,16 +56,30 @@ const Register = () => {
   };
 
   return (
-    <>
+    <div className="app-container">
       <Navigation />
-      <form className="product-form" onSubmit={handleSubmit}>
-        <h2>상품 생성</h2>
-        <input name="title" placeholder="상품명" required />
-        <input name="price" type="number" placeholder="가격" required />
-        <textarea name="description" placeholder="설명" required />
-        <button type="submit">상품 생성</button>
-      </form>
-    </>
+
+      <div className="auth-container">
+        <h2 className="auth-title">Add Product</h2>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <input name="title" placeholder="PRODUCT NAME" required />
+          <input
+            name="price"
+            type="number"
+            placeholder="PRICE (KRW)"
+            required
+          />
+          <textarea
+            name="description"
+            placeholder="DESCRIPTION"
+            rows={5}
+            required
+          />
+          <button type="submit">REGISTER</button>
+        </form>
+      </div>
+    </div>
   );
 };
 
