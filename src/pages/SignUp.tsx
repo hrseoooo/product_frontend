@@ -63,10 +63,10 @@ const SignUp = () => {
   return (
     <div className="app-container">
       <Navigation />
-      
+
       <div className="auth-container">
         <h2 className="auth-title">Create Account</h2>
-        
+
         <form className="auth-form" onSubmit={handleSubmit(onSubmit)}>
           <input
             type="email"
@@ -83,7 +83,7 @@ const SignUp = () => {
             {...register("name", { required: true })}
             placeholder="NAME"
           />
-          
+
           <button type="submit">CREATE</button>
         </form>
       </div>
