@@ -389,7 +389,7 @@
 
 .category-column {
   flex: 1;
-  min-width: 200px;
+  min-width: 130px;
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -421,8 +421,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  font-size: 14px;
+  padding: 8px 10px;
+  font-size: 13px;
   color: #334155;
   background: transparent;
   border: none;
@@ -450,4 +450,313 @@
 
 .category-item.selected .category-item-chevron {
   color: #2563eb;
+}
+
+/* =========================================
+   선택된 카테고리 및 Slave(매핑) 영역 UI
+========================================= */
+.selected-category-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.selected-category-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.title-icon {
+  color: #64748b;
+}
+
+.selected-category-path {
+  font-size: 15px;
+  color: #2563eb;
+  font-weight: 600;
+  background: #eff6ff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-bottom: 20px;
+}
+
+.selected-category-id {
+  color: #94a3b8;
+  font-size: 13px;
+  margin-left: 6px;
+}
+
+.slave-categories-section {
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 16px;
+}
+
+.slave-categories-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 12px;
+}
+
+.slave-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slave-card {
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  gap: 12px;
+  transition: all 0.2s;
+}
+
+.slave-card:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.slave-badge-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.slave-badge {
+  background: #475569;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.mapping-type-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+.mapping-type-badge.auto {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+.mapping-type-badge.manual {
+  background: #fef08a;
+  color: #854d0e;
+}
+
+.slave-reset-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  margin-left: 4px;
+}
+.slave-reset-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.slave-alias {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.slave-path {
+  font-size: 14px;
+  color: #334155;
+  font-weight: 500;
+  flex: 1;
+}
+
+.slave-error {
+  font-size: 13px;
+  color: #ef4444;
+  flex: 1;
+  font-style: italic;
+}
+
+.slave-loading {
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* =========================================
+   쇼핑몰 카테고리 수동 수정 모달 UI
+========================================= */
+.slave-edit-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.slave-edit-btn:hover {
+  background: #e2e8f0;
+  color: #2563eb;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.category-modal {
+  background: #ffffff;
+  width: 1000px;
+  max-width: 95vw;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 85vh;
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.modal-body {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modal-desc {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: #475569;
+}
+
+.modal-selected-path {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #334155;
+  border: 1px dashed #cbd5e1;
+}
+
+.modal-selected-path strong {
+  color: #0f172a;
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #f8fafc;
+}
+
+.btn-cancel {
+  padding: 8px 16px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #f1f5f9;
+}
+
+.btn-confirm {
+  padding: 8px 16px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-confirm:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-confirm:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
 }

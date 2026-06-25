@@ -11,6 +11,10 @@ import {
   ImagePlus,
   X,
   ChevronRight,
+  CheckCircle2,
+  Link,
+  Pencil,
+  RotateCcw,
 } from "lucide-react";
 import "froala-editor/css/froala_style.min.css";
 import "froala-editor/css/froala_editor.pkgd.min.css";
@@ -80,6 +84,16 @@ export default function Register() {
   const [validationError, setValidationError] = useState<string>("");
 
   const toggleSection = (section: number) => {
+    if (section > 1 && selectedAccounts.length === 0) {
+      setValidationError("1단계: 쇼핑몰 계정을 먼저 선택해야 다음 단계로 갈 수 있습니다.");
+      setOpenSection(1);
+      return;
+    }
+    if (section > 2 && !getFinalCategoryId()) {
+      setValidationError("2단계: 표준 카테고리를 끝까지 선택해야 다음 단계로 갈 수 있습니다.");
+      setOpenSection(2);
+      return;
+    }
     setOpenSection(openSection === section ? 0 : section);
     setValidationError("");
   };
@@ -92,6 +106,24 @@ export default function Register() {
     if (c2) return c2.id;
     if (c1) return c1.id;
     return null;
+  };
+
+  const getSelectedCategoryPath = () => {
+    const parts = [];
+    if (selectedCategory.c1) parts.push(selectedCategory.c1.label);
+    if (selectedCategory.c2) parts.push(selectedCategory.c2.label);
+    if (selectedCategory.c3) parts.push(selectedCategory.c3.label);
+    if (selectedCategory.c4) parts.push(selectedCategory.c4.label);
+    return parts.join(" > ");
+  };
+
+  const isSelectionComplete = () => {
+    const { c1, c2, c3, c4 } = selectedCategory;
+    if (c4) return !c4.hasChildren;
+    if (c3) return !c3.hasChildren;
+    if (c2) return !c2.hasChildren;
+    if (c1) return !c1.hasChildren;
+    return false;
   };
 
   const nextStep = (currentStep: number) => {
@@ -162,6 +194,176 @@ export default function Register() {
       if (level === 2) return { ...prev, c2: node, c3: null, c4: null };
       if (level === 3) return { ...prev, c3: node, c4: null };
       return { ...prev, c4: node };
+    });
+  };
+
+  const [mappedCategories, setMappedCategories] = useState<any[]>([]);
+  const [isMappingLoading, setIsMappingLoading] = useState(false);
+
+  const fetchMappedCategories = async () => {
+    const finalId = getFinalCategoryId();
+    if (!finalId || selectedAccounts.length === 0) {
+      setMappedCategories([]);
+      return;
+    }
+    setIsMappingLoading(true);
+    try {
+      const { data } = await api.get(`/products/mapped-categories?pcode=${finalId}&accountIds=${selectedAccounts.join(",")}`);
+      setMappedCategories(data);
+    } catch (error) {
+      console.error("매핑 카테고리 로드 실패", error);
+    } finally {
+      setIsMappingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSelectionComplete()) {
+      fetchMappedCategories();
+    } else {
+      setMappedCategories([]);
+    }
+  }, [selectedCategory.c1, selectedCategory.c2, selectedCategory.c3, selectedCategory.c4, selectedAccounts]);
+
+  // 쇼핑몰 카테고리 수동 수정 (프론트엔드 상태)
+  const [manualOverrides, setManualOverrides] = useState<Record<string, { path: string, pathArray: string[] }>>({});
+  const [editingMapping, setEditingMapping] = useState<{ pcode: string, acode: string, mallName: string, pathArray: string[] } | null>(null);
+  const [siteCategories, setSiteCategories] = useState<Record<number, any[]>>({});
+  
+  const openEditModal = async (mc: any, officialName: string) => {
+    // 수동 오버라이드가 있으면 그걸 쓰고, 없으면 mc.path 사용
+    const override = manualOverrides[mc.acode];
+    const basePath = override ? override.path : mc.path;
+    const initialPath = mc.isMapped && basePath ? basePath.split(' > ') : [];
+    
+    setEditingMapping({
+      pcode: getFinalCategoryId()!,
+      acode: mc.acode,
+      mallName: officialName,
+      pathArray: initialPath
+    });
+    
+    setSiteCategories({});
+
+    const fetchPromises = [];
+    // 1차 카테고리
+    fetchPromises.push(
+      queryClient.fetchQuery({
+        queryKey: ['siteCategories', mc.acode, 1, ''],
+        queryFn: async () => {
+          const res = await api.get(`/products/site-categories/${mc.acode}?depth=1&parentPath=`);
+          return res.data;
+        },
+        staleTime: 1000 * 60 * 30,
+      })
+    );
+    
+    // 2차 이상 카테고리 (현재 매핑된 경로까지 모두 로딩)
+    let currentPath: string[] = [];
+    for (let i = 0; i < initialPath.length; i++) {
+      currentPath.push(initialPath[i]);
+      if (i + 2 <= 6) {
+        const depth = i + 2;
+        const parentPathStr = currentPath.join(',');
+        fetchPromises.push(
+          queryClient.fetchQuery({
+            queryKey: ['siteCategories', mc.acode, depth, parentPathStr],
+            queryFn: async () => {
+              const res = await api.get(`/products/site-categories/${mc.acode}?depth=${depth}&parentPath=${parentPathStr}`);
+              return res.data;
+            },
+            staleTime: 1000 * 60 * 30,
+          })
+        );
+      }
+    }
+
+    try {
+      const results = await Promise.all(fetchPromises);
+      const newSiteCategories: Record<number, any[]> = {};
+      results.forEach((data, index) => {
+        const depth = index + 1;
+        newSiteCategories[depth] = data;
+      });
+      setSiteCategories(newSiteCategories);
+    } catch (err) {
+      console.error("쇼핑몰 카테고리 초기 로드 실패", err);
+    }
+  };
+
+  useEffect(() => {
+    if (editingMapping) {
+      setTimeout(() => {
+        const selectedItems = document.querySelectorAll('.category-item.selected');
+        selectedItems.forEach(item => {
+          item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        });
+      }, 100);
+    }
+  }, [editingMapping, siteCategories]);
+
+  const fetchSiteCategoriesLazy = async (acode: string, depth: number, parentPath: string[]) => {
+    try {
+      const data = await queryClient.fetchQuery({
+        queryKey: ['siteCategories', acode, depth, parentPath.join(',')],
+        queryFn: async () => {
+          const res = await api.get(`/products/site-categories/${acode}?depth=${depth}&parentPath=${parentPath.join(',')}`);
+          return res.data;
+        },
+        staleTime: 1000 * 60 * 30, // 30분 캐싱
+      });
+      setSiteCategories(prev => ({ ...prev, [depth]: data }));
+    } catch (err) {
+      console.error("쇼핑몰 카테고리 로드 실패", err);
+    }
+  };
+
+  const handleSiteCategorySelect = (depth: number, node: any) => {
+    if (!editingMapping) return;
+    const newPath = editingMapping.pathArray.slice(0, depth - 1);
+    newPath.push(node.label);
+    
+    setEditingMapping({ ...editingMapping, pathArray: newPath });
+    
+    // 하위 뎁스 초기화
+    const newSiteCategories = { ...siteCategories };
+    for (let i = depth + 1; i <= 6; i++) delete newSiteCategories[i];
+    setSiteCategories(newSiteCategories);
+    
+    if (node.hasChildren) {
+      fetchSiteCategoriesLazy(editingMapping.acode, depth + 1, newPath);
+    }
+  };
+
+  const submitCategoryMapping = async () => {
+    if (!editingMapping) return;
+    setManualOverrides(prev => ({
+      ...prev,
+      [editingMapping.acode]: {
+        path: editingMapping.pathArray.join(' > '),
+        pathArray: editingMapping.pathArray
+      }
+    }));
+    setEditingMapping(null);
+  };
+
+  const resetCategoryMapping = (acode: string) => {
+    Swal.fire({
+      title: '초기화하시겠습니까?',
+      text: '수동 매핑을 초기화하고 자동 매핑으로 되돌립니다.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: '초기화',
+      cancelButtonText: '취소'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setManualOverrides(prev => {
+          const next = { ...prev };
+          delete next[acode];
+          return next;
+        });
+        setEditingMapping(null);
+      }
     });
   };
 
@@ -500,15 +702,150 @@ export default function Register() {
                 </div>
 
                 {getFinalCategoryId() && (
-                  <div
-                    style={{
-                      marginTop: "12px",
-                      color: "#2563eb",
-                      fontWeight: 600,
-                      fontSize: "14px",
-                    }}
-                  >
-                    ✅ 선택된 카테고리 ID: {getFinalCategoryId()}
+                  <div className="selected-category-box">
+                    <div className="selected-category-title">
+                      <CheckCircle2 size={16} className="title-icon" />
+                      선택된 표준 카테고리
+                    </div>
+                    <div className="selected-category-path">
+                      {getSelectedCategoryPath()}{' '}
+                      <span className="selected-category-id">(ID: {getFinalCategoryId()})</span>
+                    </div>
+
+                    {/* 슬레이브 카테고리 영역 */}
+                    {isSelectionComplete() && (
+                      <div className="slave-categories-section">
+                        <div className="slave-categories-header">
+                          <Link size={16} className="title-icon" />
+                          연동된 쇼핑몰 카테고리
+                        </div>
+                        {isMappingLoading ? (
+                          <div className="slave-loading">로딩 중...</div>
+                        ) : mappedCategories.length > 0 ? (
+                        <div className="slave-list">
+                          {mappedCategories.map((mc, idx) => {
+                            const mallNameMap: Record<string, string> = {
+                              COUPANG: '쿠팡',
+                              SMARTSTORE: '스마트스토어',
+                              '11ST': '11번가',
+                              CAFE24: '카페24',
+                            };
+                            const officialName = mallNameMap[mc.mallType] || mc.mallType;
+                            
+                            // 로컬 수동 상태 반영
+                            const override = manualOverrides[mc.acode];
+                            const isManual = !!override;
+                            const currentPath = override ? override.path : mc.path;
+                            const isCurrentlyMapped = mc.isMapped || !!currentPath;
+                            
+                            return (
+                              <div key={idx} className="slave-card">
+                                <div className="slave-badge-wrapper">
+                                  <div className="slave-badge">{officialName}</div>
+                                  <div className="slave-alias">({mc.accountName})</div>
+                                </div>
+                                {isCurrentlyMapped ? (
+                                  <div className="slave-path">{currentPath}</div>
+                                ) : (
+                                  <div className="slave-error">
+                                    {officialName}에 매핑된 카테고리가 존재하지 않습니다.
+                                  </div>
+                                )}
+                                {isCurrentlyMapped && (
+                                  <div className={`mapping-type-badge ${isManual ? 'manual' : 'auto'}`}>
+                                    {isManual ? '수동' : '자동'}
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  className="slave-edit-btn"
+                                  onClick={() => openEditModal({ ...mc, isMapped: isCurrentlyMapped, path: currentPath }, officialName)}
+                                  title="쇼핑몰 카테고리 수동 수정"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 쇼핑몰 카테고리 수정 모달 */}
+                {editingMapping && (
+                  <div className="modal-overlay">
+                    <div className="category-modal">
+                      <div className="modal-header">
+                        <h3>[{editingMapping.mallName}] 카테고리 수동 매핑</h3>
+                        <button type="button" onClick={() => setEditingMapping(null)} className="modal-close-btn">
+                          <X size={24} />
+                        </button>
+                      </div>
+                      <div className="modal-body">
+                        <p className="modal-desc">
+                          해당 쇼핑몰에서 사용할 정확한 카테고리를 끝까지 선택해주세요.
+                        </p>
+                        
+                        <div className="category-selector-container">
+                          {[1, 2, 3, 4, 5, 6, 7].map(depth => {
+                            const nodes = siteCategories[depth];
+                            if (!nodes || nodes.length === 0) return null;
+                            
+                            return (
+                              <div key={depth} className="category-column">
+                                <div className="category-column-header">{depth}차 분류</div>
+                                <div className="category-list">
+                                  {nodes.map((node) => (
+                                    <button
+                                      key={node.id}
+                                      type="button"
+                                      className={`category-item ${editingMapping.pathArray[depth - 1] === node.label ? "selected" : ""}`}
+                                      onClick={() => handleSiteCategorySelect(depth, node)}
+                                    >
+                                      <span>{node.label}</span>
+                                      {node.hasChildren && <ChevronRight className="category-item-chevron" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="modal-selected-path" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div><strong>선택한 경로:</strong> {editingMapping.pathArray.join(' > ') || '없음'}</div>
+                          {manualOverrides[editingMapping.acode] && (
+                            <button
+                              type="button"
+                              className="slave-reset-btn"
+                              onClick={() => {
+                                resetCategoryMapping(editingMapping.acode);
+                              }}
+                              title="수동 매핑 초기화"
+                              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', border: '1px solid #e2e8f0', borderRadius: '4px', background: '#fff', color: '#64748b', cursor: 'pointer' }}
+                            >
+                              <RotateCcw size={14} />
+                              <span style={{ fontSize: '12px' }}>초기화</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="modal-footer">
+                        <button type="button" className="btn-cancel" onClick={() => setEditingMapping(null)}>
+                          취소
+                        </button>
+                        <button 
+                          type="button" 
+                          className="btn-confirm" 
+                          onClick={submitCategoryMapping}
+                          disabled={editingMapping.pathArray.length === 0}
+                        >
+                          확인
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 

@@ -105,3 +105,8 @@ input:focus, textarea:focus {
   background-color: #fff !important;
   color: #000 !important;
 }
+
+/* Ensure SweetAlert2 popups appear above all other UI elements (like modals) */
+.swal2-container {
+  z-index: 99999 !important;
+}

@@ -23,4 +23,16 @@ api.interceptors.request.use(
   },
 );
 
+// 응답 인터셉터: 401 에러 발생 시 로그아웃 및 리다이렉트 처리
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      useAuthStore.getState().logout();
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
