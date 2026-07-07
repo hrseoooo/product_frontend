@@ -772,6 +772,22 @@
   background: #fcfdfe;
 }
 
+/* ---------- Spinner ---------- */
+.cm-spin {
+  animation: cm-spin-rotate 0.8s linear infinite;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+
+@keyframes cm-spin-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {
   .cm-header {
