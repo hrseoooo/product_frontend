@@ -9,6 +9,7 @@ import Login from "./pages/Login.tsx";
 import SignUp from "./pages/SignUp.tsx";
 import Register from "./pages/Register.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
+import CategoryMapping from "./pages/CategoryMapping.tsx";
 
 // QueryClient 인스턴스 생성
 const queryClient = new QueryClient();
@@ -34,6 +35,10 @@ const router = createBrowserRouter([
   {
     path: "/products/:id", // http://localhost:5173/products/:id
     element: <ProductDetail />,
+  },
+  {
+    path: "/category-mapping", // http://localhost:5173/category-mapping
+    element: <CategoryMapping />,
   },
 ]);
 

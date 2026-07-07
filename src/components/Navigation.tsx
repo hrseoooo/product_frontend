@@ -26,6 +26,7 @@ const Navigation = () => {
             <>
               <Link to="/">Products</Link>
               <Link to="/register">Add Product</Link>
+              <Link to="/category-mapping">Category</Link>
               <button onClick={() => setIsModalOpen(true)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>쇼핑몰계정</button>
               <button onClick={handleLogout}>Logout</button>
             </>
