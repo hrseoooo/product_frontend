@@ -27,23 +27,33 @@ const Products = () => {
     }
   }, [accessToken, navigate]);
 
-  // ─── 상품 전체 조회 ───────────────────────────────────
-  const { data: products, isLoading, isError } = useQuery<Product[]>({
-    queryKey: ['products'],
+  // ─── 상품 조회 (서버 사이드 검색) ───────────────────────
+  // 이전에는 상품 전체를 클라이언트로 내려받은 뒤 브라우저에서 filter()로
+  // 걸러냈습니다. 데이터가 누적될수록 대역폭/메모리 낭비가 커지므로,
+  // 검색어를 서버에 위임하고 결과만 받아오도록 변경했습니다.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const { data: productsResponse, isLoading, isError } = useQuery<{
+    items: Product[];
+    total: number;
+  }>({
+    queryKey: ['products', debouncedSearch],
     queryFn: async () => {
-      const res = await fetch('http://localhost:1111/products');
+      const url = debouncedSearch
+        ? `http://localhost:1111/products?search=${encodeURIComponent(debouncedSearch)}`
+        : 'http://localhost:1111/products';
+      const res = await fetch(url);
       if (!res.ok) throw new Error('상품을 불러오지 못했습니다.');
       return res.json();
     },
     enabled: !!accessToken,
   });
 
-  // 클라이언트 사이드 검색 필터링
-  const filtered = products?.filter(
-    (p) =>
-      p.title.toLowerCase().includes(search.toLowerCase()) ||
-      p.description.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = productsResponse?.items;
 
   // ─── 상품 등록 ────────────────────────────────────────
   const registerMutation = useMutation({

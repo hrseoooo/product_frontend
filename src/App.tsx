@@ -28,10 +28,10 @@ function App() {
   };
 
   const {
-    data: products,
+    data: productsResponse,
     isLoading,
     isError,
-  } = useQuery<Product[]>({
+  } = useQuery<{ items: Product[]; total: number; page: number; limit: number }>({
     queryKey: ["products", searchTerm],
     queryFn: async () => {
       const url = searchTerm ? `http://localhost:1111/products?search=${encodeURIComponent(searchTerm)}` : "http://localhost:1111/products";
@@ -42,6 +42,7 @@ function App() {
     // 로그인 했을 때만 페치할 수도 있지만, 공개 API라면 상관없음
     enabled: !!accessToken,
   });
+  const products = productsResponse?.items;
 
   const { data: mallAccounts } = useQuery({
     queryKey: ["mallAccounts"],

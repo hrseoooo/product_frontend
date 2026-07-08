@@ -767,9 +767,29 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding: 18px 26px;
   border-top: 1px solid #f1f5f9;
   background: #fcfdfe;
+  flex-wrap: wrap;
+}
+
+.cm-pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cm-pagination .cm-btn-ghost {
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+.cm-pagination-info {
+  font-size: 12px;
+  color: #64748b;
+  min-width: 80px;
+  text-align: center;
 }
 
 /* ---------- Spinner ---------- */

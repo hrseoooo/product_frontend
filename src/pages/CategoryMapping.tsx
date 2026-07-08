@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   ChevronRight,
+  ChevronLeft,
   Check,
   RotateCcw,
   Layers,
@@ -103,6 +104,12 @@ export default function CategoryMapping() {
 
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  // 미매핑 카테고리가 쇼핑몰당 만 건 단위로 나올 수 있어, 전체 행을 한 번에
+  // <tr>로 렌더링하면 브라우저 메인 스레드가 초 단위로 멈춰버립니다.
+  // 페이지 단위로 잘라서 그리도록 페이지네이션을 둡니다.
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(1);
 
   // 현재 카스케이드 탐색 대상 몰 (선택된 몰 중에서만)
   const effectiveMallId =
@@ -246,6 +253,19 @@ export default function CategoryMapping() {
   const totalCount = combinedRows.length;
   const mappedCount = combinedRows.filter((r) => r.isMapped).length;
   const progressPct = totalCount ? Math.round((mappedCount / totalCount) * 100) : 0;
+
+  // 검색어/필터/쇼핑몰 선택이 바뀌면 1페이지로 리셋 (이전 필터 결과의 뒷페이지에
+  // 머물러 있으면 빈 화면처럼 보일 수 있음)
+  useEffect(() => {
+    setPage(1);
+  }, [query, statusFilter, selectedMalls]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedRows = useMemo(
+    () => filteredRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredRows, safePage]
+  );
 
   return (
     <div className="app-container cm-page">
@@ -470,7 +490,7 @@ export default function CategoryMapping() {
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((row, idx) => {
+                pagedRows.map((row, idx) => {
                   const m = MALL_MAP[row.mallId];
                   return (
                     <tr
@@ -508,7 +528,31 @@ export default function CategoryMapping() {
         </div>
 
         <div className="cm-table-footer">
-          <span className="cm-muted">{filteredRows.length}개 카테고리 표시 중</span>
+          <span className="cm-muted">
+            전체 {filteredRows.length}개 중 {(safePage - 1) * PAGE_SIZE + 1}-
+            {Math.min(safePage * PAGE_SIZE, filteredRows.length)}
+          </span>
+          {totalPages > 1 && (
+            <div className="cm-pagination">
+              <button
+                className="cm-btn-ghost"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft size={14} /> 이전
+              </button>
+              <span className="cm-pagination-info">
+                {safePage} / {totalPages} 페이지
+              </span>
+              <button
+                className="cm-btn-ghost"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                다음 <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
         </div>
       </section>
     </div>
