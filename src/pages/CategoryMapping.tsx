@@ -1,25 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Search,
   ChevronRight,
   ChevronLeft,
-  Check,
-  RotateCcw,
-  Layers,
-  CircleCheck,
-  CircleAlert,
+  X,
   Loader2,
+  Layers,
 } from "lucide-react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import Navigation from "../components/Navigation";
 import api from "../api/axios";
 import "./CategoryMapping.css";
 
 /* ------------------------------------------------------------------ */
-/* Mall definitions                                                     */
-/* 실제 mall_accounts에 매핑된 acode가 확인된 쇼핑몰만 우선 하드코딩한다.  */
-/* (mall-account.service.ts / update_db.ts 참고)                        */
-/* 나머지 쇼핑몰(옥션/G마켓/인터파크/롯데온/위메프/티몬 등)의 acode는     */
-/* 아직 확정되지 않아 추후 추가한다.                                     */
+/* Master-Slave 구조:                                                  */
+/* 표준 카테고리(playauto_cate, Master) 기준으로 사이트 카테고리         */
+/* (playauto_site_cate, Slave)를 태그로 매핑한다.                       */
+/* "미매핑" = 표준 카테고리에 해당 쇼핑몰 사이트 카테고리가 하나도 없음.   */
 /* ------------------------------------------------------------------ */
 
 type Mall = {
@@ -36,236 +33,259 @@ const MALLS: Mall[] = [
   { id: "A112", name: "11번가", short: "11", color: "#ff0038" },
 ];
 
-const MALL_MAP: Record<string, Mall> = Object.fromEntries(
-  MALLS.map((m) => [m.id, m])
-);
+type Tab = "unmapped" | "mapped";
 
-/* ------------------------------------------------------------------ */
-/* API response types                                                  */
-/* (product/src/products/dto/site-category.dto.ts 와 동일한 형태)       */
-/* ------------------------------------------------------------------ */
+type Tag = { ccode: string; label: string };
+type UnmappedRow = { pcode: string; label: string };
+type MappedRow = { pcode: string; label: string; tags: Tag[] };
+type SiteSearchResult = { ccode: string; label: string };
 
-type CategoryNode = {
-  id: string;
-  label: string;
-  children: CategoryNode[];
+const PAGE_SIZE = 30;
+
+type ListResponse<T> = {
+  success: boolean;
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
 };
 
-type SiteCategoryRow = {
-  number: string;
-  acode: string;
-  shopId: string;
-  ccode: string;
-  dc1Nm: string;
-  dc2Nm: string;
-  dc3Nm: string;
-  dc4Nm: string;
-  dc5Nm: string;
-  dc6Nm: string;
-  dc7Nm: string;
-  cateStateCd: number;
-  pcode?: string; // 매핑완료 목록에서만 내려옴
-};
-
-function isLeafNode(node?: CategoryNode): boolean {
-  return !!node && (!node.children || node.children.length === 0);
+// 탭별 엔드포인트/쿼리 캐시 키를 한 곳에서 관리합니다.
+function listQueryKey(tab: Tab, acode: string, keyword: string, page: number) {
+  return ["standard-category", tab, acode, keyword, page] as const;
 }
 
-function rowPath(row: SiteCategoryRow): string {
-  return [row.dc1Nm, row.dc2Nm, row.dc3Nm, row.dc4Nm, row.dc5Nm, row.dc6Nm, row.dc7Nm]
-    .filter(Boolean)
-    .join(" > ");
+function listEndpoint(tab: Tab, acode: string) {
+  return tab === "unmapped"
+    ? `/products/standard-category/unmapped/${acode}`
+    : `/products/standard-category/mapped/${acode}`;
 }
 
-type StatusFilter = "all" | "mapped" | "unmapped";
-type CombinedRow = SiteCategoryRow & { mallId: string; isMapped: boolean };
-
-/* ------------------------------------------------------------------ */
-/* Component                                                           */
-/* ------------------------------------------------------------------ */
+async function fetchList<T>(
+  tab: Tab,
+  acode: string,
+  keyword: string,
+  page: number,
+  signal?: AbortSignal,
+): Promise<ListResponse<T>> {
+  const { data } = await api.get<ListResponse<T>>(listEndpoint(tab, acode), {
+    params: { keyword, page, limit: PAGE_SIZE },
+    signal,
+  });
+  return data;
+}
 
 export default function CategoryMapping() {
-  const [selectedMalls, setSelectedMalls] = useState<Set<string>>(
-    new Set([MALLS[0].id])
-  );
-  const [activeMallId, setActiveMallId] = useState<string>(MALLS[0].id);
-
-  // 몰별 사이트 카테고리 트리 캐시 (탐색 영역용, GET /products/site-category/:acode)
-  const [treeCache, setTreeCache] = useState<Record<string, CategoryNode[]>>({});
-  const [treeLoading, setTreeLoading] = useState(false);
-  const [mallPaths, setMallPaths] = useState<Record<string, CategoryNode[]>>({});
-
-  // 몰별 매핑/미매핑 사이트 카테고리 목록 캐시
-  // (GET /products/site-category/mapped/:acode, /unmapped/:acode)
-  const [rowsCache, setRowsCache] = useState<
-    Record<string, { mapped: SiteCategoryRow[]; unmapped: SiteCategoryRow[] }>
-  >({});
-  const [rowsLoading, setRowsLoading] = useState(false);
-
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-
-  // 미매핑 카테고리가 쇼핑몰당 만 건 단위로 나올 수 있어, 전체 행을 한 번에
-  // <tr>로 렌더링하면 브라우저 메인 스레드가 초 단위로 멈춰버립니다.
-  // 페이지 단위로 잘라서 그리도록 페이지네이션을 둡니다.
-  const PAGE_SIZE = 50;
+  const [acode, setAcode] = useState<string>(MALLS[0].id);
+  const [tab, setTab] = useState<Tab>("unmapped");
+  const [keyword, setKeyword] = useState("");
+  const [debouncedKeyword, setDebouncedKeyword] = useState("");
   const [page, setPage] = useState(1);
 
-  // 현재 카스케이드 탐색 대상 몰 (선택된 몰 중에서만)
-  const effectiveMallId =
-    activeMallId && selectedMalls.has(activeMallId)
-      ? activeMallId
-      : [...selectedMalls][0] ?? null;
+  const queryClient = useQueryClient();
 
-  /* ---------------- 사이트 카테고리 트리 로드 (탐색 영역) ---------------- */
+  // 미매핑 탭에서 사용자가 아직 서버에 저장하지 않고 화면에서 붙여둔 태그(1:N 구성 중)
+  // pcode -> Tag[]
+  const [pendingTags, setPendingTags] = useState<Record<string, Tag[]>>({});
+
+  // 검색어 디바운스 (300ms)
   useEffect(() => {
-    if (!effectiveMallId || treeCache[effectiveMallId]) return;
-    let active = true;
-    setTreeLoading(true);
-    api
-      .get(`/products/site-category/${effectiveMallId}`)
-      .then(({ data }) => {
-        if (!active) return;
-        if (data?.success) {
-          setTreeCache((prev) => ({ ...prev, [effectiveMallId]: data.data }));
-        }
-      })
-      .catch((err) => console.error("사이트 카테고리 트리 로드 실패", err))
-      .finally(() => {
-        if (active) setTreeLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [effectiveMallId, treeCache]);
+    const timer = setTimeout(() => setDebouncedKeyword(keyword), 300);
+    return () => clearTimeout(timer);
+  }, [keyword]);
 
-  /* ---------------- 선택된 몰들의 매핑/미매핑 목록 로드 (표 영역) ---------------- */
+  // 쇼핑몰/탭/검색어가 바뀌면 1페이지로 리셋
   useEffect(() => {
-    const targets = [...selectedMalls].filter((id) => !rowsCache[id]);
-    if (targets.length === 0) return;
-    let active = true;
-    setRowsLoading(true);
-    Promise.all(
-      targets.map((acode) =>
-        Promise.all([
-          api.get(`/products/site-category/mapped/${acode}`),
-          api.get(`/products/site-category/unmapped/${acode}`),
-        ]).then(([mappedRes, unmappedRes]) => ({
-          acode,
-          mapped: mappedRes.data?.success ? mappedRes.data.data : [],
-          unmapped: unmappedRes.data?.success ? unmappedRes.data.data : [],
-        }))
-      )
-    )
-      .then((results) => {
-        if (!active) return;
-        setRowsCache((prev) => {
-          const next = { ...prev };
-          results.forEach((r) => {
-            next[r.acode] = { mapped: r.mapped, unmapped: r.unmapped };
-          });
-          return next;
-        });
-      })
-      .catch((err) =>
-        console.error("사이트 카테고리 매핑/미매핑 목록 로드 실패", err)
-      )
-      .finally(() => {
-        if (active) setRowsLoading(false);
+    setPage(1);
+  }, [acode, tab, debouncedKeyword]);
+
+  /* ---------------- 목록 로드 (react-query 캐싱) ----------------
+   * - 같은 (탭, 몰, 검색어, 페이지) 조합은 staleTime(30초) 동안 재요청하지 않고
+   *   캐시된 데이터를 즉시 반환합니다. 탭/몰을 왔다갔다 해도 API를 다시 부르지 않음.
+   * - placeholderData: keepPreviousData 로 페이지/필터 전환 시 화면이 비었다가
+   *   다시 채워지는 깜빡임 없이 이전 데이터를 유지한 채 새 데이터로 갈아탑니다.
+   */
+  const listQuery = useQuery({
+    queryKey: listQueryKey(tab, acode, debouncedKeyword, page),
+    queryFn: ({ signal }) =>
+      fetchList<UnmappedRow | MappedRow>(tab, acode, debouncedKeyword, page, signal),
+    enabled: !!acode,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  // [로딩 속도 개선] 현재 탭의 다음 페이지와, 반대 탭(첫 페이지)을 백그라운드에서
+  // 미리 캐싱해둡니다. 사용자가 실제로 클릭했을 때는 이미 캐시에 있어 API 대기 없이
+  // 즉시 렌더링됩니다 (react-query는 이미 캐시된 키는 중복 요청하지 않습니다).
+  useEffect(() => {
+    if (!acode) return;
+    const totalKnown = listQuery.data?.total ?? 0;
+    const hasNextPage = totalKnown > page * PAGE_SIZE;
+    if (hasNextPage) {
+      queryClient.prefetchQuery({
+        queryKey: listQueryKey(tab, acode, debouncedKeyword, page + 1),
+        queryFn: ({ signal }) =>
+          fetchList<UnmappedRow | MappedRow>(tab, acode, debouncedKeyword, page + 1, signal),
+        staleTime: 30_000,
       });
-    return () => {
-      active = false;
-    };
-  }, [selectedMalls, rowsCache]);
-
-  const activePath = effectiveMallId ? mallPaths[effectiveMallId] ?? [] : [];
-
-  // 현재 몰의 사이트 카테고리 트리로 카스케이드 컬럼 구성
-  const columns = useMemo(() => {
-    if (!effectiveMallId) return [];
-    const tree = treeCache[effectiveMallId] ?? [];
-    const cols: CategoryNode[][] = [tree];
-    for (const node of activePath) {
-      if (node.children && node.children.length) cols.push(node.children);
     }
-    return cols;
-  }, [effectiveMallId, activePath, treeCache]);
 
-  const toggleMall = (id: string) => {
-    setSelectedMalls((prev) => {
+    const otherTab: Tab = tab === "unmapped" ? "mapped" : "unmapped";
+    queryClient.prefetchQuery({
+      queryKey: listQueryKey(otherTab, acode, debouncedKeyword, 1),
+      queryFn: ({ signal }) =>
+        fetchList<UnmappedRow | MappedRow>(otherTab, acode, debouncedKeyword, 1, signal),
+      staleTime: 30_000,
+    });
+  }, [acode, tab, debouncedKeyword, page, listQuery.data?.total, queryClient]);
+
+  const loading = listQuery.isLoading;
+  const unmappedRows = tab === "unmapped" ? ((listQuery.data?.data as UnmappedRow[]) ?? []) : [];
+  const mappedRows = tab === "mapped" ? ((listQuery.data?.data as MappedRow[]) ?? []) : [];
+  const total = listQuery.data?.total ?? 0;
+
+  useEffect(() => {
+    if (listQuery.error) {
+      console.error("표준 카테고리 목록 로드 실패", listQuery.error);
+    }
+  }, [listQuery.error]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // 캐시에 들어있는 매핑완료 목록을 낙관적으로 갈아끼우는 헬퍼.
+  // 서버에 실제로 반영된 뒤에도 invalidate로 최종 정합성을 맞춥니다.
+  const currentMappedKey = listQueryKey(tab, acode, debouncedKeyword, page);
+  const patchMappedCache = (
+    updater: (rows: MappedRow[]) => MappedRow[],
+  ) => {
+    queryClient.setQueryData<ListResponse<MappedRow>>(currentMappedKey, (prev) =>
+      prev ? { ...prev, data: updater(prev.data) } : prev,
+    );
+  };
+
+  /* ---------------- 태그 추가/삭제 (매핑완료 탭: 즉시 서버 반영) ---------------- */
+  const addTagImmediate = async (pcode: string, tag: Tag) => {
+    await api.post("/products/category-mapping/tag", {
+      pcode,
+      acode,
+      ccode: tag.ccode,
+    });
+    patchMappedCache((rows) =>
+      rows.map((row) =>
+        row.pcode === pcode ? { ...row, tags: [...row.tags, tag] } : row,
+      ),
+    );
+    queryClient.invalidateQueries({ queryKey: ["standard-category", "mapped", acode] });
+  };
+
+  const removeTagImmediate = async (pcode: string, ccode: string) => {
+    await api.post("/products/category-mapping/tag/remove", {
+      pcode,
+      acode,
+      ccode,
+    });
+    patchMappedCache((rows) =>
+      rows.map((row) =>
+        row.pcode === pcode
+          ? { ...row, tags: row.tags.filter((t) => t.ccode !== ccode) }
+          : row,
+      ),
+    );
+    queryClient.invalidateQueries({ queryKey: ["standard-category", "mapped", acode] });
+  };
+
+  /* ---------------- 태그 추가/삭제 (미매핑 탭: pendingTags에 쌓아두고 일괄/개별 확정) ---------------- */
+  const addPendingTag = (pcode: string, tag: Tag) => {
+    setPendingTags((prev) => {
+      const cur = prev[pcode] ?? [];
+      if (cur.some((t) => t.ccode === tag.ccode)) return prev;
+      return { ...prev, [pcode]: [...cur, tag] };
+    });
+  };
+
+  const removePendingTag = (pcode: string, ccode: string) => {
+    setPendingTags((prev) => ({
+      ...prev,
+      [pcode]: (prev[pcode] ?? []).filter((t) => t.ccode !== ccode),
+    }));
+  };
+
+  const confirmPendingTags = async (pcode: string) => {
+    const tags = pendingTags[pcode];
+    if (!tags || tags.length === 0) return;
+    await Promise.all(
+      tags.map((t) =>
+        api.post("/products/category-mapping/tag", {
+          pcode,
+          acode,
+          ccode: t.ccode,
+        })
+      )
+    );
+    setPendingTags((prev) => {
+      const next = { ...prev };
+      delete next[pcode];
+      return next;
+    });
+    // 매핑이 완료됐으므로 미매핑 목록 캐시에서 제거하고, 매핑완료 목록은 무효화합니다.
+    queryClient.setQueryData<ListResponse<UnmappedRow>>(currentMappedKey, (prev) =>
+      prev
+        ? {
+            ...prev,
+            data: prev.data.filter((r) => r.pcode !== pcode),
+            total: Math.max(0, prev.total - 1),
+          }
+        : prev,
+    );
+    queryClient.invalidateQueries({ queryKey: ["standard-category", "unmapped", acode] });
+    queryClient.invalidateQueries({ queryKey: ["standard-category", "mapped", acode] });
+  };
+
+  /* ---------------- 일괄 매핑 부스터 (미매핑 탭: 다중 선택 + 표준 카테고리 1개 지정 후 일괄 적용) ---------------- */
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedPcodes, setSelectedPcodes] = useState<Set<string>>(new Set());
+  const [bulkTag, setBulkTag] = useState<Tag | null>(null);
+  const [bulkApplying, setBulkApplying] = useState(false);
+
+  const toggleBulkSelect = (pcode: string) => {
+    setSelectedPcodes((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else {
-        next.add(id);
-        setActiveMallId(id); // 새로 선택하면 해당 몰로 포커스
-      }
+      if (next.has(pcode)) next.delete(pcode);
+      else next.add(pcode);
       return next;
     });
   };
 
-  const allSelected = selectedMalls.size === MALLS.length;
-  const toggleAllMalls = () => {
-    setSelectedMalls(allSelected ? new Set() : new Set(MALLS.map((m) => m.id)));
-  };
-
-  const handleSelect = (level: number, node: CategoryNode) => {
-    if (!effectiveMallId) return;
-    setMallPaths((prev) => {
-      const cur = prev[effectiveMallId] ?? [];
-      const next = cur.slice(0, level);
-      next[level] = node;
-      return { ...prev, [effectiveMallId]: next };
-    });
-  };
-
-  const resetActivePath = () => {
-    if (!effectiveMallId) return;
-    setMallPaths((prev) => ({ ...prev, [effectiveMallId]: [] }));
-  };
-
-  /* ---------------- 표 영역: 선택된 몰 전체를 통합한 사이트 카테고리 목록 ---------------- */
-  const combinedRows: CombinedRow[] = useMemo(() => {
-    const rows: CombinedRow[] = [];
-    selectedMalls.forEach((acode) => {
-      const cache = rowsCache[acode];
-      if (!cache) return;
-      cache.mapped.forEach((r) => rows.push({ ...r, mallId: acode, isMapped: true }));
-      cache.unmapped.forEach((r) =>
-        rows.push({ ...r, mallId: acode, isMapped: false })
+  const applyBulkMapping = async () => {
+    if (!bulkTag || selectedPcodes.size === 0) return;
+    setBulkApplying(true);
+    try {
+      await api.post("/products/category-mapping/tag/bulk", {
+        acode,
+        pcodes: [...selectedPcodes],
+        ccode: bulkTag.ccode,
+      });
+      queryClient.setQueryData<ListResponse<UnmappedRow>>(currentMappedKey, (prev) =>
+        prev
+          ? {
+              ...prev,
+              data: prev.data.filter((r) => !selectedPcodes.has(r.pcode)),
+              total: Math.max(0, prev.total - selectedPcodes.size),
+            }
+          : prev,
       );
-    });
-    return rows;
-  }, [selectedMalls, rowsCache]);
-
-  const filteredRows = combinedRows.filter((row) => {
-    const path = rowPath(row);
-    const matchesQuery =
-      !query ||
-      path.toLowerCase().includes(query.toLowerCase()) ||
-      row.ccode.toLowerCase().includes(query.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "mapped" && row.isMapped) ||
-      (statusFilter === "unmapped" && !row.isMapped);
-    return matchesQuery && matchesStatus;
-  });
-
-  const totalCount = combinedRows.length;
-  const mappedCount = combinedRows.filter((r) => r.isMapped).length;
-  const progressPct = totalCount ? Math.round((mappedCount / totalCount) * 100) : 0;
-
-  // 검색어/필터/쇼핑몰 선택이 바뀌면 1페이지로 리셋 (이전 필터 결과의 뒷페이지에
-  // 머물러 있으면 빈 화면처럼 보일 수 있음)
-  useEffect(() => {
-    setPage(1);
-  }, [query, statusFilter, selectedMalls]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const pagedRows = useMemo(
-    () => filteredRows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [filteredRows, safePage]
-  );
+      queryClient.invalidateQueries({ queryKey: ["standard-category", "unmapped", acode] });
+      queryClient.invalidateQueries({ queryKey: ["standard-category", "mapped", acode] });
+      setSelectedPcodes(new Set());
+      setBulkTag(null);
+      setBulkMode(false);
+    } catch (err) {
+      console.error("일괄 매핑 실패", err);
+    } finally {
+      setBulkApplying(false);
+    }
+  };
 
   return (
     <div className="app-container cm-page">
@@ -278,275 +298,164 @@ export default function CategoryMapping() {
           </span>
           <h1 className="cm-title">카테고리 매핑</h1>
           <p className="cm-subtitle">
-            여러 쇼핑몰을 선택한 뒤, 각 몰의 사이트 카테고리 매핑 현황을 한
-            화면에서 확인하세요.
+            표준 카테고리를 기준으로, 각 쇼핑몰의 사이트 카테고리를 태그로
+            매핑하세요.
           </p>
-        </div>
-        <div className="cm-progress">
-          <div className="cm-progress-stat">
-            <span className="cm-progress-num">{progressPct}%</span>
-            <span className="cm-progress-total">
-              {mappedCount} / {totalCount} 카테고리 매핑
-            </span>
-          </div>
-          <div className="cm-progress-bar">
-            <div className="cm-progress-fill" style={{ width: `${progressPct}%` }} />
-          </div>
         </div>
       </header>
 
-      {/* Mall selector (multi-select) */}
       <section className="cm-mall-section">
         <div className="cm-mall-section-head">
-          <span className="cm-mall-section-label">
-            쇼핑몰 선택
-            <em>{selectedMalls.size}개 선택됨</em>
-          </span>
-          <button className="cm-selectall-btn" onClick={toggleAllMalls}>
-            {allSelected ? "전체 해제" : "전체 선택"}
-          </button>
+          <span className="cm-mall-section-label">쇼핑몰 선택</span>
         </div>
         <div className="cm-mall-bar">
           {MALLS.map((mall) => {
-            const on = selectedMalls.has(mall.id);
+            const on = acode === mall.id;
             return (
               <button
                 key={mall.id}
+                type="button"
                 className={`cm-mall-pill ${on ? "active" : ""}`}
-                onClick={() => toggleMall(mall.id)}
+                onClick={() => setAcode(mall.id)}
               >
                 <span className="cm-mall-badge" style={{ background: mall.color }}>
                   {mall.short}
                 </span>
                 {mall.name}
-                <span className={`cm-mall-check ${on ? "on" : ""}`}>
-                  {on && <Check size={12} strokeWidth={3} />}
-                </span>
               </button>
             );
           })}
         </div>
       </section>
 
-      {/* Site category cascade (browse, per mall) */}
       <section className="cm-cascade-card">
-        <div className="cm-cascade-head">
-          <h2>
-            <Layers size={16} />
-            사이트 카테고리 탐색
-          </h2>
-        </div>
-
-        {selectedMalls.size === 0 ? (
-          <div className="cm-cascade-placeholder">
-            먼저 위에서 쇼핑몰을 선택하세요.
+        <div className="cm-tabs-toolbar">
+          <div className="cm-tabs">
+            <button
+              className={`cm-tab-btn ${tab === "unmapped" ? "active" : ""}`}
+              onClick={() => setTab("unmapped")}
+            >
+              미매핑 표준 카테고리
+            </button>
+            <button
+              className={`cm-tab-btn ${tab === "mapped" ? "active" : ""}`}
+              onClick={() => setTab("mapped")}
+            >
+              매핑 완료 표준 카테고리
+            </button>
           </div>
-        ) : (
-          <>
-            {/* 선택한 몰 탭 - 몰별로 사이트 카테고리 트리를 개별 탐색 */}
-            <div className="cm-mall-tabs">
-              {[...selectedMalls].map((id) => {
-                const m = MALL_MAP[id];
-                return (
-                  <button
-                    key={id}
-                    className={`cm-mall-tab ${effectiveMallId === id ? "active" : ""}`}
-                    onClick={() => setActiveMallId(id)}
-                  >
-                    <span
-                      className="cm-mall-badge sm"
-                      style={{ background: m.color }}
-                    >
-                      {m.short}
-                    </span>
-                    {m.name}
-                  </button>
-                );
-              })}
-            </div>
 
-            {/* 현재 몰 breadcrumb */}
-            <div className="cm-cascade-subhead">
-              <div className="cm-breadcrumb">
-                {activePath.length === 0 ? (
-                  <span className="cm-breadcrumb-empty">
-                    {effectiveMallId ? MALL_MAP[effectiveMallId].name : ""} 카테고리를
-                    선택하세요
-                  </span>
-                ) : (
-                  activePath.map((node, i) => (
-                    <span key={node.id} className="cm-crumb">
-                      {i > 0 && <ChevronRight size={13} className="cm-crumb-sep" />}
-                      {node.label}
-                    </span>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {treeLoading && !treeCache[effectiveMallId ?? ""] ? (
-              <div className="cm-cascade-placeholder">
-                <Loader2 size={16} className="cm-spin" /> 카테고리 불러오는 중...
-              </div>
-            ) : (
-              <div className="cm-columns">
-                {columns.map((col, level) => (
-                  <div className="cm-column" key={level}>
-                    {col.map((node) => {
-                      const active = activePath[level]?.id === node.id;
-                      const leaf = isLeafNode(node);
-                      return (
-                        <button
-                          key={node.id}
-                          className={`cm-column-item ${active ? "active" : ""}`}
-                          onClick={() => handleSelect(level, node)}
-                        >
-                          <span className="cm-column-label">{node.label}</span>
-                          {!leaf ? (
-                            <ChevronRight size={14} className="cm-column-arrow" />
-                          ) : (
-                            active && <Check size={14} className="cm-column-check" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="cm-cascade-actions">
-              <div className="cm-apply-target">
-                <span className="cm-apply-target-label">
-                  {effectiveMallId ? MALL_MAP[effectiveMallId].name : ""} 카테고리 경로
-                </span>
-                <div className="cm-apply-list">
-                  <span className="cm-apply-item done">
-                    <span className="cm-apply-path">
-                      {activePath.length > 0
-                        ? activePath.map((n) => n.label).join(" > ")
-                        : "선택된 경로 없음"}
-                    </span>
-                  </span>
-                </div>
-              </div>
-              <div className="cm-cascade-buttons">
-                <button className="cm-btn-ghost" onClick={resetActivePath}>
-                  <RotateCcw size={14} /> 경로 초기화
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-      </section>
-
-      {/* Site category list (전체 / 매핑완료 / 미매핑) */}
-      <section className="cm-table-card">
-        <div className="cm-table-toolbar">
           <div className="cm-search">
             <Search size={16} className="cm-search-icon" />
             <input
               type="text"
-              placeholder="카테고리명 또는 코드로 검색"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              placeholder="표준 카테고리 키워드로 검색 (예: 가디건)"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
             />
           </div>
-          <div className="cm-filter-group">
-            {(["all", "mapped", "unmapped"] as const).map((f) => (
-              <button
-                key={f}
-                className={`cm-filter-chip ${statusFilter === f ? "active" : ""}`}
-                onClick={() => setStatusFilter(f)}
-              >
-                {f === "all" ? "전체" : f === "mapped" ? "매핑완료" : "미매핑"}
-              </button>
-            ))}
-          </div>
+
+          {tab === "unmapped" && (
+            <button
+              className={`cm-btn-ghost ${bulkMode ? "active" : ""}`}
+              onClick={() => {
+                setBulkMode((v) => !v);
+                setSelectedPcodes(new Set());
+                setBulkTag(null);
+              }}
+            >
+              {bulkMode ? "일괄 매핑 종료" : "일괄 매핑 모드"}
+            </button>
+          )}
         </div>
 
-        <div className="cm-table-wrap">
-          <table className="cm-table">
-            <thead>
-              <tr>
-                <th style={{ width: 110 }}>쇼핑몰</th>
-                <th>사이트 카테고리 경로</th>
-                <th style={{ width: 140 }}>사이트 코드</th>
-                <th style={{ width: 140 }}>매핑된 표준코드</th>
-                <th style={{ width: 110 }}>상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rowsLoading && filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="cm-empty">
-                    불러오는 중...
-                  </td>
-                </tr>
-              ) : filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="cm-empty">
-                    조건에 맞는 카테고리가 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                pagedRows.map((row, idx) => {
-                  const m = MALL_MAP[row.mallId];
-                  return (
-                    <tr
-                      key={`${row.mallId}-${row.number}-${row.ccode}-${row.pcode ?? "u"}-${idx}`}
-                    >
-                      <td>
-                        <span
-                          className="cm-mini-badge"
-                          style={{ background: m.color, marginRight: 6 }}
-                        >
-                          {m.short}
-                        </span>
-                        {m.name}
-                      </td>
-                      <td>{rowPath(row) || "-"}</td>
-                      <td className="cm-mono">{row.ccode}</td>
-                      <td className="cm-mono">{row.pcode || "-"}</td>
-                      <td>
-                        {row.isMapped ? (
-                          <span className="cm-status mapped">
-                            <CircleCheck size={13} /> 매핑완료
-                          </span>
-                        ) : (
-                          <span className="cm-status unmapped">
-                            <CircleAlert size={13} /> 미매핑
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+        {tab === "unmapped" && bulkMode && (
+          <div className="cm-bulk-bar">
+            <span className="cm-bulk-count">{selectedPcodes.size}개 선택됨</span>
+            <div className="cm-bulk-search">
+              <SiteCategorySearchBox
+                acode={acode}
+                placeholder="일괄 적용할 사이트 카테고리 검색"
+                onSelect={(tag) => setBulkTag(tag)}
+              />
+            </div>
+            {bulkTag && (
+              <span className="cm-tag cm-bulk-selected-tag">
+                {bulkTag.label}
+                <button onClick={() => setBulkTag(null)}>
+                  <X size={12} />
+                </button>
+              </span>
+            )}
+            <button
+              className="cm-btn-primary"
+              disabled={!bulkTag || selectedPcodes.size === 0 || bulkApplying}
+              onClick={applyBulkMapping}
+            >
+              {bulkApplying ? "적용 중..." : `일괄 매핑(Bulk Apply)`}
+            </button>
+          </div>
+        )}
+
+        <div className="cm-list-wrap">
+          {loading ? (
+            <div className="cm-cascade-placeholder">
+              <Loader2 size={16} className="cm-spin" /> 불러오는 중...
+            </div>
+          ) : tab === "unmapped" ? (
+            unmappedRows.length === 0 ? (
+              <div className="cm-empty">조건에 맞는 미매핑 카테고리가 없습니다.</div>
+            ) : (
+              unmappedRows.map((row) => (
+                <UnmappedRowItem
+                  key={row.pcode}
+                  row={row}
+                  acode={acode}
+                  bulkMode={bulkMode}
+                  selected={selectedPcodes.has(row.pcode)}
+                  onToggleSelect={() => toggleBulkSelect(row.pcode)}
+                  pendingTags={pendingTags[row.pcode] ?? []}
+                  onAddPendingTag={(tag) => addPendingTag(row.pcode, tag)}
+                  onRemovePendingTag={(ccode) => removePendingTag(row.pcode, ccode)}
+                  onConfirm={() => confirmPendingTags(row.pcode)}
+                />
+              ))
+            )
+          ) : mappedRows.length === 0 ? (
+            <div className="cm-empty">조건에 맞는 매핑 완료 카테고리가 없습니다.</div>
+          ) : (
+            mappedRows.map((row) => (
+              <MappedRowItem
+                key={row.pcode}
+                row={row}
+                acode={acode}
+                onAddTag={(tag) => addTagImmediate(row.pcode, tag)}
+                onRemoveTag={(ccode) => removeTagImmediate(row.pcode, ccode)}
+              />
+            ))
+          )}
         </div>
 
         <div className="cm-table-footer">
           <span className="cm-muted">
-            전체 {filteredRows.length}개 중 {(safePage - 1) * PAGE_SIZE + 1}-
-            {Math.min(safePage * PAGE_SIZE, filteredRows.length)}
+            전체 {total}개 중 {(page - 1) * PAGE_SIZE + 1}-
+            {Math.min(page * PAGE_SIZE, total)}
           </span>
           {totalPages > 1 && (
             <div className="cm-pagination">
               <button
                 className="cm-btn-ghost"
-                disabled={safePage <= 1}
+                disabled={page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 <ChevronLeft size={14} /> 이전
               </button>
               <span className="cm-pagination-info">
-                {safePage} / {totalPages} 페이지
+                {page} / {totalPages} 페이지
               </span>
               <button
                 className="cm-btn-ghost"
-                disabled={safePage >= totalPages}
+                disabled={page >= totalPages}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
                 다음 <ChevronRight size={14} />
@@ -555,6 +464,229 @@ export default function CategoryMapping() {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 표준 카테고리 검색용 자동완성 입력창                                  */
+/* 사이트 카테고리(ccode)를 키워드로 검색해서 선택하면 onSelect 호출     */
+/* ------------------------------------------------------------------ */
+function SiteCategorySearchBox({
+  acode,
+  placeholder,
+  onSelect,
+}: {
+  acode: string;
+  placeholder: string;
+  onSelect: (tag: Tag) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [results, setResults] = useState<SiteSearchResult[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!value.trim()) {
+      setResults([]);
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    const timer = setTimeout(() => {
+      api
+        .get(`/products/site-category/search/${acode}`, {
+          params: { keyword: value.trim() },
+        })
+        .then(({ data }) => {
+          if (active) setResults(Array.isArray(data) ? data : []);
+        })
+        .catch(() => {
+          if (active) setResults([]);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [value, acode]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className="cm-autocomplete" ref={boxRef}>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+      />
+      {open && value.trim() && (
+        <div className="cm-autocomplete-list">
+          {loading ? (
+            <div className="cm-autocomplete-item muted">검색 중...</div>
+          ) : results.length === 0 ? (
+            <div className="cm-autocomplete-item muted">검색 결과가 없습니다.</div>
+          ) : (
+            results.map((r) => (
+              <button
+                key={r.ccode}
+                className="cm-autocomplete-item"
+                onClick={() => {
+                  onSelect({ ccode: r.ccode, label: r.label });
+                  setValue("");
+                  setResults([]);
+                  setOpen(false);
+                }}
+              >
+                {r.label}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 미매핑 표준 카테고리 1행                                             */
+/* ------------------------------------------------------------------ */
+function UnmappedRowItem({
+  row,
+  acode,
+  bulkMode,
+  selected,
+  onToggleSelect,
+  pendingTags,
+  onAddPendingTag,
+  onRemovePendingTag,
+  onConfirm,
+}: {
+  row: UnmappedRow;
+  acode: string;
+  bulkMode: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+  pendingTags: Tag[];
+  onAddPendingTag: (tag: Tag) => void;
+  onRemovePendingTag: (ccode: string) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="cm-row-card">
+      {bulkMode && (
+        <input
+          type="checkbox"
+          className="cm-row-checkbox"
+          checked={selected}
+          onChange={onToggleSelect}
+        />
+      )}
+      <div className="cm-row-main">
+        <div className="cm-row-label">{row.label}</div>
+        <div className="cm-row-code">{row.pcode}</div>
+      </div>
+      {!bulkMode && (
+        <div className="cm-row-mapping">
+          <div className="cm-tag-list">
+            {pendingTags.map((t) => (
+              <span key={t.ccode} className="cm-tag pending">
+                {t.label}
+                <button onClick={() => onRemovePendingTag(t.ccode)}>
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <SiteCategorySearchBox
+            acode={acode}
+            placeholder="사이트 카테고리 검색"
+            onSelect={(tag) => onAddPendingTag(tag)}
+          />
+          {pendingTags.length > 0 && (
+            <button className="cm-btn-primary sm" onClick={onConfirm}>
+              매핑 확정
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* 매핑완료 표준 카테고리 1행 (태그 N개, 자유 추가/삭제)                 */
+/* ------------------------------------------------------------------ */
+function MappedRowItem({
+  row,
+  acode,
+  onAddTag,
+  onRemoveTag,
+}: {
+  row: MappedRow;
+  acode: string;
+  onAddTag: (tag: Tag) => Promise<void>;
+  onRemoveTag: (ccode: string) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="cm-row-card">
+      <div className="cm-row-main">
+        <div className="cm-row-label">{row.label}</div>
+        <div className="cm-row-code">{row.pcode}</div>
+      </div>
+      <div className="cm-row-mapping">
+        <div className="cm-tag-list">
+          {row.tags.map((t) => (
+            <span key={t.ccode} className="cm-tag">
+              {t.label}
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await onRemoveTag(t.ccode);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+        <SiteCategorySearchBox
+          acode={acode}
+          placeholder="사이트 카테고리 추가 검색"
+          onSelect={async (tag) => {
+            setBusy(true);
+            try {
+              await onAddTag(tag);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </div>
     </div>
   );
 }

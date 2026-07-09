@@ -3,7 +3,7 @@ import { useAuthStore } from "../store/useAuthStore";
 
 const api = axios.create({
   baseURL: "http://localhost:1111", // 백엔드 주소
-  timeout: 5000,
+  timeout: 30000,
 });
 
 // 요청 인터셉터: 모든 요청 전에 실행됩니다.
