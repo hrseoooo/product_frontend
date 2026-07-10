@@ -1082,3 +1082,360 @@
   padding: 48px 0;
   color: #94a3b8;
 }
+
+/* ============================================================
+   다중 몰 선택 + 전체 버튼
+   ============================================================ */
+
+.cm-mall-pill-all {
+  border-style: dashed;
+}
+
+.cm-mall-pill-all.active {
+  border-style: solid;
+}
+
+/* ============================================================
+   행별 몰 상태 칩 (매핑완료/미매핑 공용)
+   ============================================================ */
+
+.cm-row-mall-list {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cm-mall-status-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 8px;
+  border-radius: 10px;
+  border: 1px solid #eef2f7;
+  background: #fafbfc;
+  min-width: 190px;
+  max-width: 260px;
+}
+
+.cm-mall-status-chip.mapped {
+  border-color: #d1fae5;
+  background: #f0fdf9;
+}
+
+.cm-mall-status-chip.unmapped {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.cm-mall-status-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.35;
+}
+
+.cm-mall-status-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.cm-mall-status-path {
+  font-size: 12px;
+  color: #0f172a;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cm-mall-status-empty {
+  font-size: 12px;
+  color: #d97706;
+  font-weight: 500;
+}
+
+.cm-mall-status-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #4f46e5;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cm-mall-status-btn:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.cm-bulk-mall-select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e0e7ff;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ============================================================
+   카테고리 매핑 추가/수정 모달
+   ============================================================ */
+
+.cm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.cm-modal {
+  background: #fff;
+  width: 560px;
+  max-width: 100%;
+  max-height: 85vh;
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cm-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cm-modal-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cm-modal-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.cm-modal-header-titles h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cm-modal-pcode {
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: "SFMono-Regular", "Menlo", monospace;
+}
+
+.cm-modal-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+}
+
+.cm-modal-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.cm-modal-current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cm-modal-current-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.cm-modal-modeswitch {
+  display: flex;
+  gap: 6px;
+  padding: 14px 22px 0;
+}
+
+.cm-modal-modeswitch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cm-modal-modeswitch button.active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+
+.cm-modal-body {
+  padding: 16px 22px 22px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 260px;
+}
+
+.cm-autocomplete-wide {
+  max-width: none;
+}
+
+.cm-modal-saving {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  font-size: 12px;
+  color: #64748b;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* ============================================================
+   사이트 카테고리 트리 뷰
+   ============================================================ */
+
+.cm-tree-scroll {
+  max-height: 380px;
+  overflow-y: auto;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  background: #fafbfc;
+  padding: 6px;
+}
+
+.cm-tree-node {
+  display: flex;
+  flex-direction: column;
+}
+
+.cm-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+}
+
+.cm-tree-row.active {
+  background: #eef2ff;
+}
+
+.cm-tree-toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 28px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.cm-tree-toggle svg {
+  transition: transform 0.15s ease;
+}
+
+.cm-tree-toggle-closed {
+  transform: rotate(-90deg);
+}
+
+.cm-tree-toggle-spacer {
+  width: 22px;
+  flex-shrink: 0;
+}
+
+.cm-tree-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  padding: 6px 8px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.cm-tree-label:hover {
+  background: #fff;
+  color: #0f172a;
+}
+
+.cm-tree-row.active .cm-tree-label {
+  color: #4338ca;
+  font-weight: 600;
+}
+
+.cm-tree-check {
+  color: #4f46e5;
+  flex-shrink: 0;
+}
+
+.cm-tree-children {
+  padding-left: 20px;
+  border-left: 1px dashed #e2e8f0;
+  margin-left: 10px;
+}
+
+.cm-tree-loading,
+.cm-tree-error,
+.cm-tree-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.cm-tree-error {
+  color: #ef4444;
+}
