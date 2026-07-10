@@ -15,8 +15,13 @@ import "./CategoryMapping.css";
 /* ------------------------------------------------------------------ */
 /* Master-Slave 구조:                                                  */
 /* 표준 카테고리(playauto_cate, Master) 기준으로 사이트 카테고리         */
-/* (playauto_site_cate, Slave)를 태그로 매핑한다.                       */
-/* "미매핑" = 표준 카테고리에 해당 쇼핑몰 사이트 카테고리가 하나도 없음.   */
+/* (playauto_site_cate, Slave) 1개를 매핑한다.                          */
+/* [1:1 원칙] 표준 카테고리 1건은 "같은 쇼핑몰 내에서" 사이트 카테고리를   */
+/* 최대 1개만 가질 수 있다(백엔드 setStandardMapping 참고). 따라서 이     */
+/* 화면은 태그를 여러 개 누적하는 게 아니라, 몰별로 매핑된 사이트 카테고리 */
+/* 1건을 "설정/교체"하는 구조다. 백엔드는 삭제(delete) API를 제공하지     */
+/* 않으므로, 매핑을 없애려면 다른 ccode로 교체해야 한다.                  */
+/* "미매핑" = 표준 카테고리에 해당 쇼핑몰 사이트 카테고리 매핑이 없음.     */
 /* ------------------------------------------------------------------ */
 
 type Mall = {
@@ -36,8 +41,11 @@ const MALLS: Mall[] = [
 type Tab = "unmapped" | "mapped";
 
 type Tag = { ccode: string; label: string };
+// 백엔드(StandardCategoryRow)가 실제로 내려주는 모양: 몰(acode)별 매핑 1건.
+// [1:1 원칙] 같은 pcode는 같은 acode 내에서 매핑을 최대 1개만 가진다.
+type MallCategoryMapping = { acode: string; ccode: string; label: string };
 type UnmappedRow = { pcode: string; label: string };
-type MappedRow = { pcode: string; label: string; tags: Tag[] };
+type MappedRow = { pcode: string; label: string; mappings: MallCategoryMapping[] };
 type SiteSearchResult = { ccode: string; label: string };
 
 const PAGE_SIZE = 30;
@@ -55,10 +63,10 @@ function listQueryKey(tab: Tab, acode: string, keyword: string, page: number) {
   return ["standard-category", tab, acode, keyword, page] as const;
 }
 
-function listEndpoint(tab: Tab, acode: string) {
+function listEndpoint(tab: Tab) {
   return tab === "unmapped"
-    ? `/products/standard-category/unmapped/${acode}`
-    : `/products/standard-category/mapped/${acode}`;
+    ? `/products/standard-category/unmapped`
+    : `/products/standard-category/mapped`;
 }
 
 async function fetchList<T>(
@@ -68,8 +76,9 @@ async function fetchList<T>(
   page: number,
   signal?: AbortSignal,
 ): Promise<ListResponse<T>> {
-  const { data } = await api.get<ListResponse<T>>(listEndpoint(tab, acode), {
-    params: { keyword, page, limit: PAGE_SIZE },
+  // 백엔드는 acode를 URL 경로가 아닌 acodes 쿼리 파라미터(쉼표구분, 다중 몰 지원)로 받는다.
+  const { data } = await api.get<ListResponse<T>>(listEndpoint(tab), {
+    params: { acodes: acode, keyword, page, limit: PAGE_SIZE },
     signal,
   });
   return data;
@@ -164,31 +173,28 @@ export default function CategoryMapping() {
     );
   };
 
-  /* ---------------- 태그 추가/삭제 (매핑완료 탭: 즉시 서버 반영) ---------------- */
-  const addTagImmediate = async (pcode: string, tag: Tag) => {
-    await api.post("/products/category-mapping/tag", {
+  /* ---------------- 매핑 설정/교체 (매핑완료 탭: 즉시 서버 반영) ----------------
+   * [1:1 원칙] 백엔드(POST /products/category-mapping)는 같은 (pcode, acode)에
+   * 대해 항상 "덮어쓰기(수정)"로 동작하며, 별도의 삭제 API는 제공하지 않는다.
+   * 따라서 이 화면에서는 태그를 여러 개 누적하지 않고, 현재 몰(acode)에 대한
+   * 매핑 1건을 설정/교체하는 것으로 동작을 맞춘다.
+   */
+  const setMappingImmediate = async (pcode: string, tag: Tag) => {
+    await api.post("/products/category-mapping", {
       pcode,
       acode,
       ccode: tag.ccode,
     });
     patchMappedCache((rows) =>
       rows.map((row) =>
-        row.pcode === pcode ? { ...row, tags: [...row.tags, tag] } : row,
-      ),
-    );
-    queryClient.invalidateQueries({ queryKey: ["standard-category", "mapped", acode] });
-  };
-
-  const removeTagImmediate = async (pcode: string, ccode: string) => {
-    await api.post("/products/category-mapping/tag/remove", {
-      pcode,
-      acode,
-      ccode,
-    });
-    patchMappedCache((rows) =>
-      rows.map((row) =>
         row.pcode === pcode
-          ? { ...row, tags: row.tags.filter((t) => t.ccode !== ccode) }
+          ? {
+              ...row,
+              mappings: [
+                ...row.mappings.filter((m) => m.acode !== acode),
+                { acode, ccode: tag.ccode, label: tag.label },
+              ],
+            }
           : row,
       ),
     );
@@ -197,11 +203,9 @@ export default function CategoryMapping() {
 
   /* ---------------- 태그 추가/삭제 (미매핑 탭: pendingTags에 쌓아두고 일괄/개별 확정) ---------------- */
   const addPendingTag = (pcode: string, tag: Tag) => {
-    setPendingTags((prev) => {
-      const cur = prev[pcode] ?? [];
-      if (cur.some((t) => t.ccode === tag.ccode)) return prev;
-      return { ...prev, [pcode]: [...cur, tag] };
-    });
+    // [1:1 원칙] 매핑은 몰(acode)당 1건만 가능하므로, 새로 선택한 태그가
+    // 기존에 대기 중인 태그를 대체한다(누적하지 않음).
+    setPendingTags((prev) => ({ ...prev, [pcode]: [tag] }));
   };
 
   const removePendingTag = (pcode: string, ccode: string) => {
@@ -214,15 +218,14 @@ export default function CategoryMapping() {
   const confirmPendingTags = async (pcode: string) => {
     const tags = pendingTags[pcode];
     if (!tags || tags.length === 0) return;
-    await Promise.all(
-      tags.map((t) =>
-        api.post("/products/category-mapping/tag", {
-          pcode,
-          acode,
-          ccode: t.ccode,
-        })
-      )
-    );
+    // [1:1 원칙] 같은 (pcode, acode)는 매핑을 1건만 가질 수 있으므로,
+    // 여러 태그가 쌓여 있어도 마지막으로 선택한 태그 1건만 실제로 저장된다.
+    const tag = tags[tags.length - 1];
+    await api.post("/products/category-mapping", {
+      pcode,
+      acode,
+      ccode: tag.ccode,
+    });
     setPendingTags((prev) => {
       const next = { ...prev };
       delete next[pcode];
@@ -261,7 +264,7 @@ export default function CategoryMapping() {
     if (!bulkTag || selectedPcodes.size === 0) return;
     setBulkApplying(true);
     try {
-      await api.post("/products/category-mapping/tag/bulk", {
+      await api.post("/products/category-mapping/bulk", {
         acode,
         pcodes: [...selectedPcodes],
         ccode: bulkTag.ccode,
@@ -429,8 +432,7 @@ export default function CategoryMapping() {
                 key={row.pcode}
                 row={row}
                 acode={acode}
-                onAddTag={(tag) => addTagImmediate(row.pcode, tag)}
-                onRemoveTag={(ccode) => removeTagImmediate(row.pcode, ccode)}
+                onSetMapping={(tag) => setMappingImmediate(row.pcode, tag)}
               />
             ))
           )}
@@ -632,20 +634,21 @@ function UnmappedRowItem({
 }
 
 /* ------------------------------------------------------------------ */
-/* 매핑완료 표준 카테고리 1행 (태그 N개, 자유 추가/삭제)                 */
+/* 매핑완료 표준 카테고리 1행                                            */
+/* [1:1 원칙] 현재 선택된 몰(acode)당 매핑은 0건 또는 1건뿐이며,          */
+/* 백엔드에 삭제 API가 없으므로 "교체(덮어쓰기)"만 지원한다.              */
 /* ------------------------------------------------------------------ */
 function MappedRowItem({
   row,
   acode,
-  onAddTag,
-  onRemoveTag,
+  onSetMapping,
 }: {
   row: MappedRow;
   acode: string;
-  onAddTag: (tag: Tag) => Promise<void>;
-  onRemoveTag: (ccode: string) => Promise<void>;
+  onSetMapping: (tag: Tag) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const current = row.mappings.find((m) => m.acode === acode);
 
   return (
     <div className="cm-row-card">
@@ -655,37 +658,21 @@ function MappedRowItem({
       </div>
       <div className="cm-row-mapping">
         <div className="cm-tag-list">
-          {row.tags.map((t) => (
-            <span key={t.ccode} className="cm-tag">
-              {t.label}
-              <button
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await onRemoveTag(t.ccode);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                <X size={12} />
-              </button>
-            </span>
-          ))}
+          {current && <span className="cm-tag">{current.label}</span>}
         </div>
         <SiteCategorySearchBox
           acode={acode}
-          placeholder="사이트 카테고리 추가 검색"
+          placeholder={current ? "사이트 카테고리 교체 검색" : "사이트 카테고리 추가 검색"}
           onSelect={async (tag) => {
             setBusy(true);
             try {
-              await onAddTag(tag);
+              await onSetMapping(tag);
             } finally {
               setBusy(false);
             }
           }}
         />
+        {busy && <Loader2 size={14} className="cm-spin" />}
       </div>
     </div>
   );
