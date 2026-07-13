@@ -152,29 +152,35 @@
 }
 
 .option-remove-btn {
+  /* index.css의 전역 button 스타일(padding: 14px 28px, 검정 배경/테두리)이
+     이 아이콘 버튼에도 상속되어 아이콘이 짜부라지고 이상한 색으로 보이는
+     문제가 있었습니다. 모두 명시적으로 리셋합니다. */
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  color: #94a3b8;
-  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #fee2e2;
+  background: #fef2f2;
+  color: #ef4444;
+  border-radius: 8px;
   cursor: pointer;
-  margin-top: 20px;
+  margin-top: 25px;
   flex-shrink: 0;
   transition: all 0.15s ease;
+  letter-spacing: normal;
+  font-size: 0;
 }
 
-.option-remove-btn:hover:not(:disabled) {
+.option-remove-btn:hover {
   background: #fee2e2;
-  color: #ef4444;
+  border-color: #fecaca;
+  color: #dc2626;
 }
 
-.option-remove-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+.option-remove-btn:active {
+  transform: scale(0.94);
 }
 
 .option-add-btn {

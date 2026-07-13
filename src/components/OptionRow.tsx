@@ -45,7 +45,9 @@ interface OptionRowProps {
   option: ProductOption;
   onChange: (patch: Partial<ProductOption>) => void;
   onRemove: () => void;
-  removable: boolean;
+  // 이 행이 유일한 옵션인지 여부. 유일한 경우 행 자체를 지우는 대신
+  // 입력값만 비웁니다 (입력 양식은 최소 1개는 항상 남아있어야 하므로).
+  isOnlyOption: boolean;
 }
 
 export default function OptionRow({
@@ -53,13 +55,30 @@ export default function OptionRow({
   option,
   onChange,
   onRemove,
-  removable,
+  isOnlyOption,
 }: OptionRowProps) {
   const [checking, setChecking] = useState(false);
   const [gtinResult, setGtinResult] = useState<GtinResultData | null>(null);
 
   const trimmed = option.barcode.trim();
   const formatValid = trimmed.length === 0 ? null : isValidBarcodeFormat(trimmed);
+
+  // 옵션이 1개뿐일 때는 행(입력 양식)을 통째로 지우지 않고, 입력된 값만
+  // 초기화합니다. 양식은 최소 1개 유지되어야 하지만, 사용자가 잘못 입력한
+  // 내용을 지우고 싶을 수 있으므로 "내용 지우기"로 동작을 바꿔줍니다.
+  const handleRemoveClick = () => {
+    if (isOnlyOption) {
+      onChange({
+        color: "",
+        size: "",
+        stock: "0",
+        barcode: "",
+        gtinVerified: false,
+      });
+      return;
+    }
+    onRemove();
+  };
 
   const handleBarcodeChange = (value: string) => {
     // 바코드 값이 바뀌면 이전 GTIN 검증 결과는 무효화합니다.
@@ -200,9 +219,8 @@ export default function OptionRow({
       <button
         type="button"
         className="option-remove-btn"
-        onClick={onRemove}
-        disabled={!removable}
-        title="옵션 삭제"
+        onClick={handleRemoveClick}
+        title={isOnlyOption ? "입력 내용 지우기" : "옵션 삭제"}
       >
         <Trash2 size={16} />
       </button>

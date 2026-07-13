@@ -1234,7 +1234,7 @@ export default function Register() {
                       option={opt}
                       onChange={(patch) => updateOption(opt.id, patch)}
                       onRemove={() => removeOption(opt.id)}
-                      removable={options.length > 1}
+                      isOnlyOption={options.length === 1}
                     />
                   ))}
                 </div>
