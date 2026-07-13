@@ -1,0 +1,285 @@
+/* ============================================================
+   GTIN 조회 결과 모달 - 코리안넷 상품정보 화면 스타일 참고
+   ============================================================ */
+
+.gtin-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: gtin-modal-fade-in 0.15s ease-out;
+}
+
+@keyframes gtin-modal-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.gtin-modal {
+  background: #ffffff;
+  width: 640px;
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 16px;
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: gtin-modal-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes gtin-modal-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.gtin-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.gtin-modal-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.gtin-modal-success-icon {
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.gtin-modal-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gtin-modal-close-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.gtin-modal-body {
+  display: flex;
+  gap: 24px;
+  padding: 24px 22px;
+  overflow-y: auto;
+}
+
+/* ---------- 좌측 이미지 영역 ---------- */
+.gtin-modal-image-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  width: 180px;
+}
+
+.gtin-modal-image-box {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border-radius: 12px;
+  border: 1px solid #eef2f7;
+  background: #f8fafc;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.gtin-modal-image-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.gtin-modal-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: default;
+}
+
+.gtin-modal-zoom-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.gtin-modal-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.gtin-modal-status-badge.active {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.gtin-modal-status-badge.inactive {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* ---------- 우측 정보 영역 ---------- */
+.gtin-modal-info-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.gtin-modal-product-name {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.4;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #eef2f7;
+}
+
+.gtin-modal-info-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.gtin-modal-info-row {
+  display: flex;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f8fafc;
+  font-size: 13px;
+}
+
+.gtin-modal-info-row:last-child {
+  border-bottom: none;
+}
+
+.gtin-modal-info-row dt {
+  width: 92px;
+  flex-shrink: 0;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.gtin-modal-info-row dd {
+  margin: 0;
+  color: #334155;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.gtin-modal-mono {
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  letter-spacing: 0.3px;
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+/* ---------- 푸터 ---------- */
+.gtin-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 22px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafbfc;
+}
+
+.gtin-modal-confirm-btn {
+  padding: 10px 28px;
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gtin-modal-confirm-btn:hover {
+  background: #1d4ed8;
+}
+
+/* ---------- 이미지 확대 뷰 ---------- */
+.gtin-modal-zoom-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100;
+  cursor: zoom-out;
+}
+
+.gtin-modal-zoom-overlay img {
+  max-width: 85vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+@media (max-width: 560px) {
+  .gtin-modal-body {
+    flex-direction: column;
+    align-items: center;
+  }
+  .gtin-modal-info-col {
+    width: 100%;
+  }
+}

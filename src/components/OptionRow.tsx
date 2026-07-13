@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Trash2, ShieldCheck, Loader2 } from "lucide-react";
 import Swal from "sweetalert2";
-import { verifyGtinMock } from "../utils/gtinApi";
+import { verifyGtinMock, type GtinResultData } from "../utils/gtinApi";
+import GtinResultModal from "./GtinResultModal";
 import "./OptionRow.css";
 
 /* ------------------------------------------------------------------ */
@@ -55,6 +56,7 @@ export default function OptionRow({
   removable,
 }: OptionRowProps) {
   const [checking, setChecking] = useState(false);
+  const [gtinResult, setGtinResult] = useState<GtinResultData | null>(null);
 
   const trimmed = option.barcode.trim();
   const formatValid = trimmed.length === 0 ? null : isValidBarcodeFormat(trimmed);
@@ -82,22 +84,9 @@ export default function OptionRow({
 
       if (result.resultCode === "200") {
         onChange({ gtinVerified: true });
-        const d = result.resultData;
-        Swal.fire({
-          icon: "success",
-          title: "GTIN 조회 성공",
-          html: `
-            <div style="text-align:left; font-size:13px; line-height:1.7;">
-              <div><strong>GTIN</strong>: ${d.gtin}</div>
-              <div><strong>상품명</strong>: ${d.productDescription}</div>
-              <div><strong>브랜드</strong>: ${d.brandName}</div>
-              <div><strong>제조사</strong>: ${d.licenseeName}</div>
-              <div><strong>규격</strong>: ${d.netContent}</div>
-              <div><strong>상태</strong>: ${d.licenceStatus}</div>
-            </div>
-          `,
-          confirmButtonColor: "#3b82f6",
-        });
+        // SweetAlert 텍스트 나열 대신, 코리안넷 상품정보 화면 스타일의
+        // 이미지+정보 테이블 모달로 결과를 보여줍니다.
+        setGtinResult(result.resultData);
       } else {
         onChange({ gtinVerified: false });
         Swal.fire({
@@ -217,6 +206,10 @@ export default function OptionRow({
       >
         <Trash2 size={16} />
       </button>
+
+      {gtinResult && (
+        <GtinResultModal data={gtinResult} onClose={() => setGtinResult(null)} />
+      )}
     </div>
   );
 }

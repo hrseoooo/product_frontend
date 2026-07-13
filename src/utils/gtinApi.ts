@@ -39,8 +39,11 @@ export interface GtinVerifyNotFound {
 export type GtinVerifyResponse = GtinVerifySuccess | GtinVerifyNotFound;
 
 // [Mock DB] 실제로 존재하는 것으로 취급할 GTIN 목록 (스펙 예시 데이터 포함)
+// 조회 시 항상 padGtinTo14로 14자리 패딩한 값을 키로 사용하므로, 여기 등록하는
+// 키도 반드시 14자리로 패딩된 형태여야 합니다. (버그: 이전에는 13자리 그대로
+// 키를 저장해서 padGtinTo14("8801234567890") = "08801234567890"과 매칭이 안 됐음)
 const MOCK_GTIN_DB: Record<string, GtinResultData> = {
-  "8803217000601": {
+  "08803217000601": {
     productImageUrl:
       "https://gs1.koreannet.or.kr/product/info/detail/photoView.do?fileNm=8803217000014_8803217000601_1.jpg&filePath=8803217000014/8803217000601",
     licenceStatus: "ACTIVE",
@@ -53,7 +56,7 @@ const MOCK_GTIN_DB: Record<string, GtinResultData> = {
     countryOfSaleCode: "대한민국",
     dateUpdated: "2022-12-02",
   },
-  "8801234567890": {
+  "08801234567890": {
     productImageUrl: "",
     licenceStatus: "ACTIVE",
     gtin: "08801234567890",
