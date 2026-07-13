@@ -37,6 +37,22 @@
   border-color: #cbd5e1;
 }
 
+/* "다음 단계로" 버튼을 눌러 스크롤된 섹션에 잠깐 붙는 포커스 하이라이트 */
+.accordion-item.accordion-focus-flash {
+  animation: accordion-focus-pulse 0.9s ease-out;
+}
+
+@keyframes accordion-focus-pulse {
+  0% {
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.35);
+    border-color: #3b82f6;
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    border-color: #cbd5e1;
+  }
+}
+
 .accordion-header {
   width: 100%;
   display: flex;

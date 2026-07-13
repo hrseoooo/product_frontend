@@ -1,0 +1,57 @@
+.barcode-input-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.barcode-input {
+  width: 100%;
+  padding: 12px 40px 12px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.barcode-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.barcode-input.valid {
+  border-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.barcode-input.invalid {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.barcode-input-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.barcode-check {
+  color: #16a34a;
+}
+
+.barcode-spin {
+  color: #3b82f6;
+  animation: barcode-spin-rotate 0.8s linear infinite;
+}
+
+@keyframes barcode-spin-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

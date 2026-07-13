@@ -2,6 +2,8 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Navigation from "../components/Navigation";
 import ProductImageSlider from "../components/ProductImageSlider";
+import BarcodeInput from "../components/BarcodeInput";
+import { loadMockBarcode } from "../utils/barcodeValidation";
 import "./ProductDetail.css";
 
 export default function ProductDetail() {
@@ -20,6 +22,12 @@ export default function ProductDetail() {
   if (isLoading) return <div className="detail-loading">Loading...</div>;
   if (isError || !product) return <div className="detail-error">상품을 찾을 수 없습니다.</div>;
 
+  // [시나리오 B] 상세조회 화면이 열리면 기존에 등록된 바코드(Mock 저장소)를
+  // 불러와 BarcodeInput에 넘겨줍니다. autoValidateOnMount=true 이므로
+  // 화면이 로드되자마자 1차→2차 검증이 자동으로 실행되고, 통과하면 체크
+  // 표시가 자동으로 나타납니다.
+  const savedBarcode = loadMockBarcode(product.id);
+
   return (
     <div className="app-container" style={{ background: "#f8fafc" }}>
       <Navigation />
@@ -35,6 +43,21 @@ export default function ProductDetail() {
             <p className="detail-price">{product.price.toLocaleString()} KRW</p>
 
             <div className="detail-meta">
+              <div className="meta-item">
+                <span className="meta-label">바코드(GTIN)</span>
+                <span className="meta-value" style={{ maxWidth: "220px" }}>
+                  {savedBarcode ? (
+                    <BarcodeInput
+                      value={savedBarcode}
+                      onChange={() => {}}
+                      autoValidateOnMount
+                      disabled
+                    />
+                  ) : (
+                    "등록된 바코드가 없습니다"
+                  )}
+                </span>
+              </div>
               <div className="meta-item">
                 <span className="meta-label">브랜드</span>
                 <span className="meta-value">{product.brand || "-"}</span>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import Navigation from "../components/Navigation";
@@ -19,6 +19,8 @@ import {
 import "froala-editor/css/froala_style.min.css";
 import "froala-editor/css/froala_editor.pkgd.min.css";
 import FroalaEditorModule from "react-froala-wysiwyg";
+import OptionRow, { createEmptyOption, type ProductOption } from "../components/OptionRow";
+import { Plus } from "lucide-react";
 
 // Vite에서 CommonJS 모듈을 가져올 때 default 내부에 들어갈 수 있음
 const FroalaEditorComponent =
@@ -80,25 +82,61 @@ export default function Register() {
   const navigate = useNavigate();
 
   // 아코디온 상태
-  const [openSection, setOpenSection] = useState<number>(1);
+  // 답답하다는 피드백에 따라 기본적으로 전부 펼쳐둡니다 (단계별로 하나씩만
+  // 열리는 방식 대신, 여러 섹션을 동시에 열어둘 수 있는 Set으로 관리).
+  const [openSections, setOpenSections] = useState<Set<number>>(
+    new Set([1, 2, 3, 4, 5, 6, 7]),
+  );
+  const isOpen = (section: number) => openSections.has(section);
   const [validationError, setValidationError] = useState<string>("");
+
+  // 아코디온이 전부 펼쳐져 있는 상태에서는 "다음 단계로" 버튼이 섹션을 열어주는
+  // 것만으로는 아무 변화가 안 보입니다. 그래서 버튼을 누르면 다음 섹션 위치로
+  // 실제 스크롤 + 짧은 하이라이트를 줘서 "포커스가 이동했다"는 걸 보여줍니다.
+  const sectionRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  const scrollToSection = (section: number) => {
+    // setState가 반영되어 DOM이 그려진 다음 프레임에 스크롤해야 위치가 정확합니다.
+    requestAnimationFrame(() => {
+      const el = sectionRefs.current[section];
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("accordion-focus-flash");
+      setTimeout(() => el.classList.remove("accordion-focus-flash"), 900);
+    });
+  };
 
   const toggleSection = (section: number) => {
     if (section > 1 && selectedAccounts.length === 0) {
       setValidationError(
         "1단계: 쇼핑몰 계정을 먼저 선택해야 다음 단계로 갈 수 있습니다.",
       );
-      setOpenSection(1);
+      setOpenSections(new Set([1]));
+      scrollToSection(1);
       return;
     }
     if (section > 2 && !getFinalCategoryId()) {
       setValidationError(
         "2단계: 표준 카테고리를 끝까지 선택해야 다음 단계로 갈 수 있습니다.",
       );
-      setOpenSection(2);
+      setOpenSections((prev) => new Set(prev).add(2));
+      scrollToSection(2);
       return;
     }
-    setOpenSection(openSection === section ? 0 : section);
+    if (section > 4 && !areAllOptionsValid()) {
+      setValidationError(
+        "4단계: 모든 옵션의 바코드 유효성 검사를 통과해야 다음 단계로 갈 수 있습니다.",
+      );
+      setOpenSections((prev) => new Set(prev).add(4));
+      scrollToSection(4);
+      return;
+    }
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
     setValidationError("");
   };
 
@@ -140,11 +178,23 @@ export default function Register() {
       return;
     }
     if (currentStep === 3 && (!basicInfo.title.trim() || !basicInfo.price)) {
-      setValidationError("상품명과 판매가는 필수 입력값입니다.");
+      setValidationError("필수 값을 입력하세요.");
+      return;
+    }
+    // Step 4: 옵션 - 각 옵션 row의 바코드가 13자리 포맷을 만족하고,
+    // "유효성 검사" 버튼으로 GTIN 조회까지 통과해야 다음 단계로 넘어갈 수 있습니다.
+    if (currentStep === 4 && !areAllOptionsValid()) {
+      setValidationError(
+        "모든 옵션의 바코드를 13자리로 입력하고, 유효성 검사 버튼을 눌러 통과해야 합니다.",
+      );
       return;
     }
     setValidationError("");
-    setOpenSection(currentStep + 1);
+    const target = currentStep + 1;
+    setOpenSections((prev) => new Set(prev).add(target));
+    // 아코디온이 이미 다 펼쳐진 상태라 "열림" 자체는 눈에 안 보일 수 있으므로,
+    // 다음 섹션 위치로 스크롤 + 하이라이트를 줘서 포커스 이동을 체감하게 합니다.
+    scrollToSection(target);
   };
 
   // Step 1: 쇼핑몰 계정
@@ -156,6 +206,11 @@ export default function Register() {
       try {
         const { data } = await api.get("/mall-account");
         setMallAccounts(data);
+        // 새로고침마다 매번 계정을 다시 클릭하는 게 번거로우므로,
+        // 계정 목록을 불러오면 기본으로 전부 선택해둡니다.
+        if (data.length > 0) {
+          setSelectedAccounts(data.map((acc: any) => acc.id));
+        }
       } catch (err) {
         console.error("계정 목록 불러오기 실패", err);
       }
@@ -401,14 +456,44 @@ export default function Register() {
   };
 
   // Step 3: 기본 정보
+  // title/price는 필수값이라 매번 새로고침할 때마다 다시 입력하지 않도록
+  // 기본값을 채워둡니다. (실제 값은 그대로 수정 가능)
   const [basicInfo, setBasicInfo] = useState({
-    title: "",
-    price: "",
+    title: "테스트 상품",
+    price: "10000",
     stock: "999",
     brand: "",
     origin: "국산",
     condition: "NEW", // NEW or USED
   });
+
+  // Step 4: 옵션(색상/사이즈 등) - 바코드는 "메인 상품"이 아니라 옵션 row
+  // 각각의 기준입니다. 옵션마다 13자리 포맷 검증 + GTIN 조회(Mock API) 검증을
+  // 모두 통과해야 다음 단계로 넘어갈 수 있습니다.
+  const [options, setOptions] = useState<ProductOption[]>([createEmptyOption()]);
+
+  const updateOption = (id: string, patch: Partial<ProductOption>) => {
+    setOptions((prev) =>
+      prev.map((opt) => (opt.id === id ? { ...opt, ...patch } : opt)),
+    );
+  };
+
+  const addOption = () => {
+    setOptions((prev) => [...prev, createEmptyOption()]);
+  };
+
+  const removeOption = (id: string) => {
+    setOptions((prev) => (prev.length > 1 ? prev.filter((o) => o.id !== id) : prev));
+  };
+
+  const isOptionBarcodeFormatValid = (raw: string) => /^\d{13}$/.test(raw.trim());
+
+  // 옵션 전체가 "바코드 필수 입력 + GTIN 조회 통과"를 만족하는지 확인
+  const areAllOptionsValid = () =>
+    options.every(
+      (opt) =>
+        isOptionBarcodeFormatValid(opt.barcode) && opt.gtinVerified,
+    );
 
   const handleBasicInfoChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -519,12 +604,24 @@ export default function Register() {
     e.preventDefault();
     if (!getFinalCategoryId()) {
       Swal.fire({ icon: "warning", text: "표준 카테고리를 선택해주세요." });
-      setOpenSection(2);
+      setOpenSections((prev) => new Set(prev).add(2));
+      scrollToSection(2);
       return;
     }
     if (!basicInfo.title || !basicInfo.price) {
       Swal.fire({ icon: "warning", text: "상품명과 가격을 입력해주세요." });
-      setOpenSection(3);
+      setOpenSections((prev) => new Set(prev).add(3));
+      scrollToSection(3);
+      return;
+    }
+    // 옵션별 바코드 최종 재확인 (이중 방어)
+    if (!areAllOptionsValid()) {
+      Swal.fire({
+        icon: "warning",
+        text: "모든 옵션의 바코드를 입력하고 유효성 검사를 통과해야 등록할 수 있습니다.",
+      });
+      setOpenSections((prev) => new Set(prev).add(4));
+      scrollToSection(4);
       return;
     }
 
@@ -543,6 +640,14 @@ export default function Register() {
       mallAccounts: selectedAccounts,
       images: base64Images,
       standardCategoryId: getFinalCategoryId(),
+      // 옵션별 바코드는 옵션 row 기준으로
+      // 각각 관리됩니다 (백엔드 옵션 API가 없어 payload에만 포함).
+      options: options.map((o) => ({
+        color: o.color,
+        size: o.size,
+        stock: Number(o.stock) || 0,
+        barcode: o.barcode.trim(),
+      })),
     };
 
     mutation.mutate(payload);
@@ -563,7 +668,8 @@ export default function Register() {
         <form onSubmit={handleSubmit} className="register-form">
           {/* Step 1: 쇼핑몰 계정 선택 */}
           <div
-            className={`accordion-item ${openSection === 1 ? "active" : ""}`}
+            ref={(el) => { sectionRefs.current[1] = el; }}
+            className={`accordion-item ${isOpen(1) ? "active" : ""}`}
           >
             <button
               type="button"
@@ -574,13 +680,13 @@ export default function Register() {
                 <span className="step-number">1</span>
                 쇼핑몰 계정 선택
               </div>
-              {openSection === 1 ? (
+              {isOpen(1) ? (
                 <ChevronUp size={20} color="#94a3b8" />
               ) : (
                 <ChevronDown size={20} color="#94a3b8" />
               )}
             </button>
-            {openSection === 1 && (
+            {isOpen(1) && (
               <div className="accordion-body">
                 <p className="section-desc">
                   상품을 등록할 쇼핑몰 계정을 모두 선택해주세요.
@@ -610,7 +716,7 @@ export default function Register() {
                   </div>
                 )}
                 <div className="next-step-container">
-                  {validationError && openSection === 1 && (
+                  {validationError && isOpen(1) && (
                     <div className="validation-error">{validationError}</div>
                   )}
                   <button
@@ -618,7 +724,7 @@ export default function Register() {
                     className="next-step-btn"
                     onClick={() => nextStep(1)}
                   >
-                    다음 단계로
+                    다음 단계
                   </button>
                 </div>
               </div>
@@ -627,7 +733,8 @@ export default function Register() {
 
           {/* Step 2: 표준 카테고리 선택 */}
           <div
-            className={`accordion-item ${openSection === 2 ? "active" : ""}`}
+            ref={(el) => { sectionRefs.current[2] = el; }}
+            className={`accordion-item ${isOpen(2) ? "active" : ""}`}
           >
             <button
               type="button"
@@ -638,13 +745,13 @@ export default function Register() {
                 <span className="step-number">2</span>
                 표준 카테고리 선택
               </div>
-              {openSection === 2 ? (
+              {isOpen(2) ? (
                 <ChevronUp size={20} color="#94a3b8" />
               ) : (
                 <ChevronDown size={20} color="#94a3b8" />
               )}
             </button>
-            {openSection === 2 && (
+            {isOpen(2) && (
               <div className="accordion-body">
                 <p className="section-desc">
                   상품에 맞는 표준 카테고리를 끝까지 선택해주세요.
@@ -972,7 +1079,7 @@ export default function Register() {
                 )}
 
                 <div className="next-step-container">
-                  {validationError && openSection === 2 && (
+                  {validationError && isOpen(2) && (
                     <div className="validation-error">{validationError}</div>
                   )}
                   <button
@@ -980,7 +1087,7 @@ export default function Register() {
                     className="next-step-btn"
                     onClick={() => nextStep(2)}
                   >
-                    다음 단계로
+                    다음 단계
                   </button>
                 </div>
               </div>
@@ -989,7 +1096,8 @@ export default function Register() {
 
           {/* Step 3: 기본 및 판매 정보 */}
           <div
-            className={`accordion-item ${openSection === 3 ? "active" : ""}`}
+            ref={(el) => { sectionRefs.current[3] = el; }}
+            className={`accordion-item ${isOpen(3) ? "active" : ""}`}
           >
             <button
               type="button"
@@ -1000,13 +1108,13 @@ export default function Register() {
                 <span className="step-number">3</span>
                 기본 및 판매 정보
               </div>
-              {openSection === 3 ? (
+              {isOpen(3) ? (
                 <ChevronUp size={20} color="#94a3b8" />
               ) : (
                 <ChevronDown size={20} color="#94a3b8" />
               )}
             </button>
-            {openSection === 3 && (
+            {isOpen(3) && (
               <div className="accordion-body">
                 <div className="form-grid">
                   <div className="form-group full-width">
@@ -1074,7 +1182,7 @@ export default function Register() {
                   </div>
                 </div>
                 <div className="next-step-container">
-                  {validationError && openSection === 3 && (
+                  {validationError && isOpen(3) && (
                     <div className="validation-error">{validationError}</div>
                   )}
                   <button
@@ -1082,16 +1190,17 @@ export default function Register() {
                     className="next-step-btn"
                     onClick={() => nextStep(3)}
                   >
-                    다음 단계로
+                    다음 단계
                   </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Step 4: 이미지 등록 */}
+          {/* Step 4: 옵션 (색상/사이즈 + 옵션별 바코드) */}
           <div
-            className={`accordion-item ${openSection === 4 ? "active" : ""}`}
+            ref={(el) => { sectionRefs.current[4] = el; }}
+            className={`accordion-item ${isOpen(4) ? "active" : ""}`}
           >
             <button
               type="button"
@@ -1100,15 +1209,81 @@ export default function Register() {
             >
               <div className="accordion-title">
                 <span className="step-number">4</span>
-                이미지 등록 ({images.length}/10)
+                옵션 ({options.length}개)
               </div>
-              {openSection === 4 ? (
+              {isOpen(4) ? (
                 <ChevronUp size={20} color="#94a3b8" />
               ) : (
                 <ChevronDown size={20} color="#94a3b8" />
               )}
             </button>
-            {openSection === 4 && (
+            {isOpen(4) && (
+              <div className="accordion-body">
+                <p className="section-desc">
+                  색상, 사이즈 등 옵션을 행 단위로 추가하세요. 바코드는 메인
+                  상품이 아닌 <strong>옵션 각각</strong>에 대해 필수로
+                  입력해야 합니다. 13자리 숫자를 입력하면 자동으로 형식을
+                  검사하고, "유효성 검사" 버튼을 누르면 GTIN 식별정보 조회
+                  API(Mock)를 통해 실제 등록된 바코드인지 확인합니다.
+                </p>
+                <div className="option-list">
+                  {options.map((opt, idx) => (
+                    <OptionRow
+                      key={opt.id}
+                      index={idx}
+                      option={opt}
+                      onChange={(patch) => updateOption(opt.id, patch)}
+                      onRemove={() => removeOption(opt.id)}
+                      removable={options.length > 1}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="option-add-btn"
+                  onClick={addOption}
+                  style={{ marginTop: "12px" }}
+                >
+                  <Plus size={14} />
+                  옵션 추가
+                </button>
+                <div className="next-step-container">
+                  {validationError && isOpen(4) && (
+                    <div className="validation-error">{validationError}</div>
+                  )}
+                  <button
+                    type="button"
+                    className="next-step-btn"
+                    onClick={() => nextStep(4)}
+                  >
+                    다음 단계
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Step 5: 이미지 등록 */}
+          <div
+            ref={(el) => { sectionRefs.current[5] = el; }}
+            className={`accordion-item ${isOpen(5) ? "active" : ""}`}
+          >
+            <button
+              type="button"
+              className="accordion-header"
+              onClick={() => toggleSection(5)}
+            >
+              <div className="accordion-title">
+                <span className="step-number">5</span>
+                이미지 등록 ({images.length}/10)
+              </div>
+              {isOpen(5) ? (
+                <ChevronUp size={20} color="#94a3b8" />
+              ) : (
+                <ChevronDown size={20} color="#94a3b8" />
+              )}
+            </button>
+            {isOpen(5) && (
               <div className="accordion-body">
                 <p className="section-desc">
                   대표 이미지 1장과 부가 이미지 최대 9장을 등록할 수 있습니다.
@@ -1144,35 +1319,36 @@ export default function Register() {
                   <button
                     type="button"
                     className="next-step-btn"
-                    onClick={() => nextStep(4)}
+                    onClick={() => nextStep(5)}
                   >
-                    다음 단계로
+                    다음 단계
                   </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Step 5: 상세 설명 (Froala Editor) */}
+          {/* Step 6: 상세 설명 (Froala Editor) */}
           <div
-            className={`accordion-item ${openSection === 5 ? "active" : ""}`}
+            ref={(el) => { sectionRefs.current[6] = el; }}
+            className={`accordion-item ${isOpen(6) ? "active" : ""}`}
           >
             <button
               type="button"
               className="accordion-header"
-              onClick={() => toggleSection(5)}
+              onClick={() => toggleSection(6)}
             >
               <div className="accordion-title">
-                <span className="step-number">5</span>
+                <span className="step-number">6</span>
                 상세 설명
               </div>
-              {openSection === 5 ? (
+              {isOpen(6) ? (
                 <ChevronUp size={20} color="#94a3b8" />
               ) : (
                 <ChevronDown size={20} color="#94a3b8" />
               )}
             </button>
-            {openSection === 5 && (
+            {isOpen(6) && (
               <div className="accordion-body editor-body">
                 <p className="section-desc">
                   상품에 대한 상세한 설명을 작성해주세요. 에디터에서 자유롭게
@@ -1208,35 +1384,36 @@ export default function Register() {
                   <button
                     type="button"
                     className="next-step-btn"
-                    onClick={() => nextStep(5)}
+                    onClick={() => nextStep(6)}
                   >
-                    다음 단계로
+                    다음 단계
                   </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Step 6: 품목고시정보 */}
+          {/* Step 7: 품목고시정보 */}
           <div
-            className={`accordion-item ${openSection === 6 ? "active" : ""}`}
+            ref={(el) => { sectionRefs.current[7] = el; }}
+            className={`accordion-item ${isOpen(7) ? "active" : ""}`}
           >
             <button
               type="button"
               className="accordion-header"
-              onClick={() => toggleSection(6)}
+              onClick={() => toggleSection(7)}
             >
               <div className="accordion-title">
-                <span className="step-number">6</span>
+                <span className="step-number">7</span>
                 품목고시정보
               </div>
-              {openSection === 6 ? (
+              {isOpen(7) ? (
                 <ChevronUp size={20} color="#94a3b8" />
               ) : (
                 <ChevronDown size={20} color="#94a3b8" />
               )}
             </button>
-            {openSection === 6 && (
+            {isOpen(7) && (
               <div className="accordion-body">
                 <div
                   className="form-group"
