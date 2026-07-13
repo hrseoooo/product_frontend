@@ -186,7 +186,7 @@ export default function OptionRow({
         )}
         {formatValid === true && !option.gtinVerified && (
           <p className="option-barcode-msg muted">
-            형식은 올바릅니다. "유효성 검사"로 실제 등록된 바코드인지
+            올바른 형식입니다. "유효성 검사"로 실제 등록된 바코드인지
             확인하세요.
           </p>
         )}
