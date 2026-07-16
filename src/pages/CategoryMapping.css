@@ -872,6 +872,41 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
 }
 
+/* [전체 선택 시] 매핑완료/미매핑 탭 구분 없이 보여주는 단일 현황 타이틀 */
+.cm-status-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 4px;
+}
+
+.cm-status-title-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* [탭별 데이터 개수] 매핑완료/미매핑 탭 버튼 옆에 현재 선택된 쇼핑몰(또는
+   전체) 기준 전체 개수를 뱃지로 보여준다. */
+.cm-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 1px 7px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cm-tab-btn.active .cm-tab-count {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
 .cm-btn-ghost.active {
   background: #eef2ff;
   color: #4f46e5;
@@ -1236,7 +1271,7 @@
 /* [모달 크기 확대] 트리로 찾기(컬럼형)를 넉넉하게 보여주기 위해
    기존보다 훨씬 넓고 높게 사용한다. */
 .cm-modal-lg {
-  width: 880px;
+  width: 1100px;
   max-width: 94vw;
   max-height: 90vh;
 }
@@ -1471,83 +1506,116 @@
 }
 
 /* ============================================================
-   모달 내 "쇼핑몰 먼저 선택" 화면
-   (전체 탭의 미매핑 표준 카테고리에 새로 매핑을 추가할 때 사용)
+   [사이트 카테고리 우선 매핑] 특정 쇼핑몰 + 미매핑 탭 전용 패널
+   사이트 카테고리를 먼저 고른 뒤, 아래 미매핑 표준 카테고리 목록에서
+   복수 선택 -> 일괄 적용하는 방식.
    ============================================================ */
 
-.cm-modal-mall-picker {
+.cm-site-first-mapper {
+  padding: 20px 26px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafbff;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 20px 0;
+  gap: 12px;
 }
 
-.cm-modal-mall-picker-desc {
-  margin: 0;
-  font-size: 13px;
-  color: #64748b;
-  text-align: center;
-}
-
-.cm-modal-mall-picker-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-}
-
-.cm-modal-mall-picker-item {
+.cm-site-first-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  flex-wrap: wrap;
 }
 
-.cm-modal-mall-picker-item:hover {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  color: #4338ca;
+.cm-site-first-header strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.cm-site-first-desc {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cm-site-first-modeswitch {
+  padding: 0;
+}
+
+.cm-site-first-picker {
+  /* [폭 확대] 트리로 찾기가 카드 좁은 폭(640px)에 눌려서 컬럼이 너무
+     좁게 보였다. 카드 전체 폭을 그대로 쓰도록 max-width를 없앤다. */
+  max-width: none;
+}
+
+.cm-site-first-applybar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 /* ============================================================
-   "전체" 탭 전용 행 UI
+   미매핑 탭 행: 체크 선택 + 적용 예정 미리보기
    ============================================================ */
 
-.cm-row-card-global {
-  align-items: flex-start;
+.cm-row-card-selected {
+  background: #eef2ff;
 }
 
-.cm-global-unmapped-side {
+.cm-row-preview {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 4px;
+  min-width: 0;
 }
 
-.cm-global-table-wrap {
+/* ============================================================
+   ["전체" 선택 시] 표준 카테고리 매핑 현황 - 리스트 형식
+   왼쪽에 표준 카테고리, 오른쪽에 매핑된 사이트 카테고리 전체를
+   테이블(쇼핑몰/카테고리 코드/카테고리 정보)로 나열한다.
+   ============================================================ */
+
+.cm-glist-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 16px 26px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cm-glist-row:hover {
+  background: #fafbfc;
+}
+
+.cm-glist-std {
+  min-width: 260px;
+  max-width: 320px;
+  flex-shrink: 0;
+  padding-top: 10px;
+}
+
+.cm-glist-mapped {
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  border: 1px solid #eef2f7;
-  border-radius: 10px;
 }
 
-.cm-global-table {
+.cm-glist-empty {
+  padding: 10px 0;
+  font-size: 12px;
+  color: #d97706;
+  font-weight: 500;
+}
+
+.cm-glist-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12.5px;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.cm-global-table thead th {
+.cm-glist-table thead th {
   text-align: left;
   padding: 8px 12px;
   font-size: 11px;
@@ -1558,19 +1626,36 @@
   white-space: nowrap;
 }
 
-.cm-global-table tbody td {
+.cm-glist-table tbody td {
   padding: 9px 12px;
   border-bottom: 1px solid #f5f7fa;
   color: #334155;
   vertical-align: middle;
 }
 
-.cm-global-table tbody tr:last-child td {
+.cm-glist-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.cm-global-mallname {
-  margin-left: 6px;
-  font-weight: 600;
+.cm-glist-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.cm-glist-mallname {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
   color: #0f172a;
+  white-space: nowrap;
+}
+
+.cm-glist-path {
+  color: #475569;
+  line-height: 1.4;
+}
+
+.cm-glist-action {
+  width: 34px;
+  text-align: center;
 }
