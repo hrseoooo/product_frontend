@@ -751,6 +751,10 @@ function GlobalMappingTableRow({
 /* ------------------------------------------------------------------ */
 /* 카테고리 매핑 추가/수정 모달 (개별 1건 저장 전용)                      */
 /* "검색"과 "트리로 찾기" 두 가지 방식을 제공한다.                        */
+/* [수정 확정 버튼] 검색/트리에서 카테고리를 고르면 즉시 저장되지 않고     */
+/* "적용 예정" 상태로만 미리보기된다. "적용" 버튼을 눌러야 실제로 저장     */
+/* (POST /products/category-mapping)이 호출된다. 다른 카테고리를 다시     */
+/* 고르면 적용 예정 값이 교체되고, 여전히 저장 전이다.                    */
 /* ------------------------------------------------------------------ */
 function CategoryPickerModal({
   state,
@@ -764,9 +768,11 @@ function CategoryPickerModal({
   onSave: (tag: Tag) => Promise<void>;
 }) {
   const [mode, setMode] = useState<"search" | "tree">("search");
+  const [pendingTag, setPendingTag] = useState<Tag | null>(null);
 
   useEffect(() => {
     setMode("search");
+    setPendingTag(null);
   }, [state?.pcode, state?.acode]);
 
   // ESC 키로 모달 닫기
@@ -780,6 +786,11 @@ function CategoryPickerModal({
   }, [state, onClose]);
 
   if (!state) return null;
+
+  const handleApply = async () => {
+    if (!pendingTag) return;
+    await onSave(pendingTag);
+  };
 
   return (
     <div className="cm-modal-overlay" onClick={onClose}>
@@ -831,23 +842,38 @@ function CategoryPickerModal({
               placeholder="사이트 카테고리 검색 (예: 라운드넥 니트)"
               className="cm-autocomplete-wide"
               autoFocus
-              onSelect={onSave}
+              onSelect={(tag) => setPendingTag(tag)}
             />
           ) : (
             <SiteCategoryTree
               acode={state.acode}
-              activeCcode={state.current?.ccode}
-              activeLabel={state.current?.label}
-              onSelect={onSave}
+              activeCcode={pendingTag?.ccode ?? state.current?.ccode}
+              activeLabel={pendingTag?.label ?? state.current?.label}
+              onSelect={(tag) => setPendingTag(tag)}
             />
           )}
         </div>
 
-        {saving && (
-          <div className="cm-modal-saving">
-            <Loader2 size={14} className="cm-spin" /> 저장 중...
-          </div>
-        )}
+        <div className="cm-modal-applybar">
+          {pendingTag ? (
+            <span className="cm-tag pending">
+              <Check size={12} /> 적용 예정: {pendingTag.label}
+              <button type="button" onClick={() => setPendingTag(null)}>
+                <X size={12} />
+              </button>
+            </span>
+          ) : (
+            <span className="cm-muted">위에서 사이트 카테고리를 선택하세요.</span>
+          )}
+          <button
+            type="button"
+            className="cm-btn-primary"
+            disabled={!pendingTag || saving}
+            onClick={handleApply}
+          >
+            {saving ? "적용 중..." : "적용"}
+          </button>
+        </div>
       </div>
     </div>
   );

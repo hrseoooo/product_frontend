@@ -1401,6 +1401,19 @@
   border-top: 1px solid #f1f5f9;
 }
 
+/* [수정 확정 버튼] 검색/트리에서 고른 카테고리를 "적용 예정"으로
+   미리보기하고, 적용 버튼을 눌러야 실제로 저장한다. */
+.cm-modal-applybar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafbff;
+  flex-wrap: wrap;
+}
+
 /* ============================================================
    사이트 카테고리 트리 뷰
    [오른쪽으로 펼쳐지는 컬럼형 캐스케이딩 UI]
