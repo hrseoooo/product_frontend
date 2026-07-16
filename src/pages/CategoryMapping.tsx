@@ -43,12 +43,24 @@ import "./CategoryMapping.css";
 /*   없애고 "표준 카테고리 매핑 현황" 단일 목록(GET .../mapping-status)   */
 /*   으로 전체 표준 카테고리 + 몰별 매핑 상태 칩을 한 번에 보여준다.       */
 /*                                                                      */
-/* [미매핑 매핑 방식] 특정 쇼핑몰 탭의 미매핑 목록에서는, "사이트           */
-/* 카테고리를 먼저 고르고 표준 카테고리를 복수 선택해서 일괄 적용"하는     */
-/* 방식을 사용한다 (검색/트리로 사이트 카테고리 1개 선택 -> 미매핑         */
-/* 표준 카테고리 여러 개 체크 -> 일괄 적용 버튼으로 한 번에 저장).         */
-/* 체크만 해둔 상태에서는 DB에 아무것도 쓰지 않고, 일괄 적용을 눌러야      */
-/* 실제 저장(POST /products/category-mapping/bulk)이 호출된다.           */
+/* [미매핑 매핑 방식 - 2단계: 임시 적용 -> 최종 일괄 적용]                */
+/* 특정 쇼핑몰 탭의 미매핑 목록에서는, DB에 바로 쓰지 않고 먼저 화면에서만  */
+/* "임시로" 매핑을 쌓아두고(staging), 마지막에 한 번에 커밋하는 방식을     */
+/* 사용한다:                                                            */
+/*  1) 사이트 카테고리를 검색/트리로 1개 선택한다.                        */
+/*  2) [행별 즉시 임시 적용] 각 행의 "적용" 버튼을 누르면 그 표준 카테고리  */
+/*     1건에 선택된 사이트 카테고리가 "임시 적용됨"으로 표시된다(아직      */
+/*     DB에 쓰지 않음). 적용 직후 사이트 카테고리 선택은 초기화되어       */
+/*     바로 다음 사이트 카테고리를 고르는 흐름으로 이어진다.              */
+/*  3) [복수 선택 + 복수 적용] 체크박스로 표준 카테고리를 2개 이상 체크    */
+/*     하면 "복수 적용" 버튼이 나타난다. 누르면 체크된 행 전체가 한 번에   */
+/*     "임시 적용됨" 상태가 된다(역시 DB에는 아직 쓰지 않음).             */
+/*  4) 임시 적용된 항목은 행에서 [x]로 개별 취소할 수 있고, 위 1~3을       */
+/*     반복하며 여러 사이트 카테고리를 서로 다른 표준 카테고리들에 계속    */
+/*     쌓아둘 수 있다.                                                  */
+/*  5) 마지막으로 "일괄 적용" 버튼(임시 적용된 항목이 1건이라도 있으면     */
+/*     노출)을 눌러야 쌓아둔 모든 임시 매핑이 실제로 DB에 저장된다        */
+/*     (POST bulk, ccode별로 그룹화해서 호출).                           */
 /* ------------------------------------------------------------------ */
 
 type Mall = {
@@ -283,12 +295,18 @@ export default function CategoryMapping() {
   const [siteMode, setSiteMode] = useState<"search" | "tree">("search");
   const [selectedSiteTag, setSelectedSiteTag] = useState<Tag | null>(null);
   const [selectedPcodes, setSelectedPcodes] = useState<Set<string>>(new Set());
-  const [applying, setApplying] = useState(false);
+  // [임시 적용, staging] pcode -> 아직 DB에 저장하지 않고 화면에서만
+  // "적용해둔" 사이트 카테고리. 행별 "적용" 버튼이나 "복수 적용" 버튼을
+  // 누르면 여기에 쌓이기만 하고, "최종 일괄 적용"을 눌러야 실제로
+  // DB(POST bulk)에 반영된다.
+  const [stagedMappings, setStagedMappings] = useState<Map<string, Tag>>(new Map());
+  const [committing, setCommitting] = useState(false);
 
   useEffect(() => {
-    // 쇼핑몰/탭이 바뀌면 선택 상태를 초기화
+    // 쇼핑몰/탭이 바뀌면 선택/임시 적용 상태를 모두 초기화
     setSelectedSiteTag(null);
     setSelectedPcodes(new Set());
+    setStagedMappings(new Map());
     setSiteMode("search");
   }, [selectedMall, tab]);
 
@@ -301,23 +319,83 @@ export default function CategoryMapping() {
     });
   };
 
-  const applyBulkMapping = async () => {
+  /* [행별 임시 적용] 선택해둔 사이트 카테고리를 표준 카테고리 1건에
+   * "임시로" 적용한다. DB에는 아무것도 쓰지 않고 stagedMappings에만
+   * 기록한다. 적용 직후 사이트 카테고리 선택은 초기화되어, 바로 다음
+   * 사이트 카테고리를 고르는 흐름으로 이어진다(연속 작업에 최적화).
+   */
+  const stageSingleMapping = (pcode: string) => {
+    if (isGlobal || !selectedSiteTag) return;
+    const tag = selectedSiteTag;
+    setStagedMappings((prev) => {
+      const next = new Map(prev);
+      next.set(pcode, tag);
+      return next;
+    });
+    setSelectedPcodes((prev) => {
+      if (!prev.has(pcode)) return prev;
+      const next = new Set(prev);
+      next.delete(pcode);
+      return next;
+    });
+    setSelectedSiteTag(null);
+  };
+
+  /* [복수 임시 적용] 체크박스로 2개 이상 고른 표준 카테고리 전체에,
+   * 선택해둔 사이트 카테고리를 한 번에 "임시 적용"한다. 이 역시 DB에는
+   * 쓰지 않고 stagedMappings만 갱신한다.
+   */
+  const stageBulkMapping = () => {
     if (isGlobal || !selectedSiteTag || selectedPcodes.size === 0) return;
-    setApplying(true);
+    const tag = selectedSiteTag;
+    setStagedMappings((prev) => {
+      const next = new Map(prev);
+      for (const pcode of selectedPcodes) next.set(pcode, tag);
+      return next;
+    });
+    setSelectedPcodes(new Set());
+    setSelectedSiteTag(null);
+  };
+
+  // 임시 적용된 항목 1건을 취소(stagedMappings에서 제거)
+  const unstageMapping = (pcode: string) => {
+    setStagedMappings((prev) => {
+      const next = new Map(prev);
+      next.delete(pcode);
+      return next;
+    });
+  };
+
+  /* [최종 일괄 적용] stagedMappings에 쌓아둔 모든 임시 매핑을 실제로
+   * DB에 저장한다. 같은 사이트 카테고리(ccode)로 임시 적용된 표준
+   * 카테고리들을 그룹으로 묶어서 POST bulk를 그룹 수만큼만 호출한다
+   * (예: 10건을 임시 적용했는데 그 중 7건이 같은 ccode라면 2번의
+   * 요청으로 끝난다).
+   */
+  const commitStagedMappings = async () => {
+    if (isGlobal || stagedMappings.size === 0) return;
+    setCommitting(true);
     try {
-      await api.post("/products/category-mapping/bulk", {
-        acode: selectedMall,
-        pcodes: [...selectedPcodes],
-        ccode: selectedSiteTag.ccode,
-      });
+      const groups = new Map<string, string[]>(); // ccode -> pcodes[]
+      for (const [pcode, tag] of stagedMappings) {
+        const list = groups.get(tag.ccode) ?? [];
+        list.push(pcode);
+        groups.set(tag.ccode, list);
+      }
+      for (const [ccode, pcodes] of groups) {
+        await api.post("/products/category-mapping/bulk", {
+          acode: selectedMall,
+          pcodes,
+          ccode,
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: ["standard-category"] });
-      setSelectedPcodes(new Set());
-      setSelectedSiteTag(null);
+      setStagedMappings(new Map());
     } catch (err) {
-      console.error("일괄 매핑 실패", err);
-      Swal.fire({ icon: "error", text: "일괄 매핑에 실패했습니다." });
+      console.error("최종 일괄 적용 실패", err);
+      Swal.fire({ icon: "error", text: "일괄 적용에 실패했습니다." });
     } finally {
-      setApplying(false);
+      setCommitting(false);
     }
   };
 
@@ -417,8 +495,9 @@ export default function CategoryMapping() {
               </span>
               <strong>{activeMall.name} 사이트 카테고리 선택</strong>
               <span className="cm-site-first-desc">
-                먼저 매핑할 사이트 카테고리를 고른 뒤, 아래 목록에서 표준 카테고리를 복수
-                선택하고 일괄 적용하세요.
+                사이트 카테고리를 고른 뒤, 표준 카테고리 행의 <b>적용</b> 버튼으로 하나씩 임시
+                적용하거나, 여러 개 체크해서 <b>복수 적용</b>하세요. 하단의{" "}
+                <b>최종 일괄 적용</b> 버튼을 눌러야 실제로 저장됩니다.
               </span>
             </div>
 
@@ -468,15 +547,40 @@ export default function CategoryMapping() {
               ) : (
                 <span className="cm-muted">사이트 카테고리를 아직 선택하지 않았습니다.</span>
               )}
-              <span className="cm-bulk-count">{selectedPcodes.size}개 선택됨</span>
-              <button
-                className="cm-btn-primary"
-                disabled={!selectedSiteTag || selectedPcodes.size === 0 || applying}
-                onClick={applyBulkMapping}
-              >
-                {applying ? "적용 중..." : "일괄 적용"}
-              </button>
+              {/* [복수 적용] 표준 카테고리를 2개 이상 체크했을 때만 노출된다.
+                  누르면 체크된 항목 전체가 한 번에 "임시 적용" 상태가 된다. */}
+              {selectedPcodes.size >= 2 && (
+                <>
+                  <span className="cm-bulk-count">{selectedPcodes.size}개 선택됨</span>
+                  <button
+                    className="cm-btn-primary sm"
+                    disabled={!selectedSiteTag}
+                    onClick={stageBulkMapping}
+                  >
+                    복수 적용
+                  </button>
+                </>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* [최종 일괄 적용] 임시 적용된 항목이 1건이라도 있으면 노출.
+            여기서 "최종 일괄 적용"을 눌러야 실제 DB에 저장된다. */}
+        {tab === "unmapped" && !isGlobal && stagedMappings.size > 0 && (
+          <div className="cm-commit-bar">
+            <span className="cm-commit-count">
+              <Check size={14} /> 임시 적용된 표준 카테고리 {stagedMappings.size}건
+            </span>
+            <span className="cm-muted">아직 저장되지 않았습니다. 최종 일괄 적용을 눌러 저장하세요.</span>
+            <button
+              type="button"
+              className="cm-btn-primary"
+              disabled={committing}
+              onClick={commitStagedMappings}
+            >
+              {committing ? "적용 중..." : `최종 일괄 적용 (${stagedMappings.size}건)`}
+            </button>
           </div>
         )}
 
@@ -516,8 +620,11 @@ export default function CategoryMapping() {
                 key={row.pcode}
                 row={row}
                 selected={selectedPcodes.has(row.pcode)}
-                previewTag={selectedPcodes.has(row.pcode) ? selectedSiteTag : null}
                 onToggleSelect={() => togglePcodeSelect(row.pcode)}
+                siteTag={selectedSiteTag}
+                stagedTag={stagedMappings.get(row.pcode) ?? null}
+                onApplyNow={() => stageSingleMapping(row.pcode)}
+                onUnstage={() => unstageMapping(row.pcode)}
               />
             ))
           ) : (
@@ -633,22 +740,32 @@ function CategoryRowItem({
 
 /* ------------------------------------------------------------------ */
 /* 표준 카테고리 1행 (특정 쇼핑몰 + 미매핑 탭)                            */
-/* [사이트 카테고리 우선 매핑] 체크박스로 선택하면, 상단에서 미리 고른     */
-/* 사이트 카테고리가 "적용 예정" 태그로 미리보기된다(아직 저장 전).        */
+/* [2단계: 임시 적용 -> 최종 일괄 적용]                                  */
+/* 이미 이 행에 "임시 적용된" 사이트 카테고리가 있으면(stagedTag) 그      */
+/* 카테고리명을 태그로 보여주고 [x]로 취소할 수 있다. 아직 임시 적용된     */
+/* 것이 없으면 "적용" 버튼으로 현재 선택된 사이트 카테고리(siteTag)를     */
+/* 이 행에 임시 적용한다(DB에는 아직 쓰지 않음). 체크박스는 "복수 적용"   */
+/* 대상으로 고르는 용도다.                                               */
 /* ------------------------------------------------------------------ */
 function UnmappedSiteFirstRow({
   row,
   selected,
-  previewTag,
   onToggleSelect,
+  siteTag,
+  stagedTag,
+  onApplyNow,
+  onUnstage,
 }: {
   row: StandardCategoryRow;
   selected: boolean;
-  previewTag: Tag | null;
   onToggleSelect: () => void;
+  siteTag: Tag | null;
+  stagedTag: Tag | null;
+  onApplyNow: () => void;
+  onUnstage: () => void;
 }) {
   return (
-    <div className={`cm-row-card ${selected ? "cm-row-card-selected" : ""}`}>
+    <div className={`cm-row-card ${selected ? "cm-row-card-selected" : ""} ${stagedTag ? "cm-row-card-staged" : ""}`}>
       <input
         type="checkbox"
         className="cm-row-checkbox"
@@ -660,16 +777,29 @@ function UnmappedSiteFirstRow({
         <div className="cm-row-code">{row.pcode}</div>
       </div>
       <div className="cm-row-preview">
-        {previewTag ? (
+        {stagedTag ? (
           <span className="cm-tag pending">
-            <Check size={12} /> 적용 예정: {previewTag.label}
+            <Check size={12} /> 임시 적용됨: {stagedTag.label}
+            <button type="button" onClick={onUnstage} title="임시 적용 취소">
+              <X size={12} />
+            </button>
           </span>
-        ) : selected ? (
-          <span className="cm-muted">상단에서 사이트 카테고리를 선택하면 여기 미리보기가 표시됩니다.</span>
         ) : (
           <span className="cm-mall-status-empty">미매핑</span>
         )}
       </div>
+      {!stagedTag && (
+        <button
+          type="button"
+          className="cm-row-apply-btn"
+          disabled={!siteTag}
+          title={siteTag ? `이 카테고리에 "${siteTag.label}" 임시 적용` : "먼저 사이트 카테고리를 선택하세요"}
+          onClick={onApplyNow}
+        >
+          <Check size={13} />
+          적용
+        </button>
+      )}
     </div>
   );
 }
