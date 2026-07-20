@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "./store/useAuthStore";
 import Navigation from "./components/Navigation";
 import ProductTable, { type Product } from "./components/ProductTable";
+export type { Product } from "./components/ProductTable";
 import { Search } from "lucide-react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import api from "./api/axios";
 
 function App() {
@@ -12,7 +13,6 @@ function App() {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchTerm = searchParams.get("search") || "";
   const [searchInput, setSearchInput] = useState(searchTerm);
-  const navigate = useNavigate();
 
   // Sync input when URL changes (e.g. clicking Products nav link)
   useEffect(() => {
@@ -33,13 +33,17 @@ function App() {
     isError,
   } = useQuery<{ items: Product[]; total: number; page: number; limit: number }>({
     queryKey: ["products", searchTerm],
+    // api 인스턴스의 요청 인터셉터가 Zustand accessToken을 Bearer 헤더로
+    // 자동 첨부합니다. 직접 fetch()를 쓰면 로그인 상태여도 헤더가 빠져
+    // ProductsController(AuthGuard)에서 401이 발생합니다.
     queryFn: async () => {
-      const url = searchTerm ? `http://localhost:1111/products?search=${encodeURIComponent(searchTerm)}` : "http://localhost:1111/products";
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("네트워크 응답이 좋지 않습니다.");
-      return res.json();
+      const { data } = await api.get<{ items: Product[]; total: number; page: number; limit: number }>(
+        "/products",
+        { params: searchTerm ? { search: searchTerm } : undefined },
+      );
+      return data;
     },
-    // 로그인 했을 때만 페치할 수도 있지만, 공개 API라면 상관없음
+    // 로그인했을 때만 요청합니다.
     enabled: !!accessToken,
   });
   const products = productsResponse?.items;

@@ -200,8 +200,17 @@ export default function CategoryMapping() {
       isGlobal
         ? fetchMappingStatus(acodesKey, debouncedKeyword, page, signal)
         : fetchList(tab, acodesKey, debouncedKeyword, page, signal),
-    staleTime: 30_000,
-    gcTime: 5 * 60_000,
+    // [캐시가 실제로 "재요청 없이" 재사용되도록] staleTime을 짧게 두면
+    // 캐시된 데이터가 화면엔 즉시 보이더라도(placeholderData 덕분) 뒤에서
+    // 조용히 재요청이 날아간다(stale-while-revalidate). 이 화면은 관리자가
+    // 직접 편집하는 데이터라 몇 분간은 신선도를 늦춰도 무방하므로,
+    // staleTime을 gcTime과 맞춰 늘리고 창 포커스/재연결 시 자동 재요청도
+    // 끈다. 저장(POST) 후에는 invalidateQueries로 명시적으로 갱신하므로
+    // 최신성은 그대로 보장된다.
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     placeholderData: keepPreviousData,
   });
 
@@ -220,7 +229,7 @@ export default function CategoryMapping() {
           isGlobal
             ? fetchMappingStatus(acodesKey, debouncedKeyword, page + 1, signal)
             : fetchList(tab, acodesKey, debouncedKeyword, page + 1, signal),
-        staleTime: 30_000,
+        staleTime: 5 * 60_000,
       });
     }
   }, [acodesKey, tab, debouncedKeyword, page, isGlobal, listQuery.data?.total, queryClient]);
@@ -249,8 +258,10 @@ export default function CategoryMapping() {
     queryKey: ["standard-category", otherTab, acodesKey, debouncedKeyword, 1],
     queryFn: ({ signal }) => fetchList(otherTab, acodesKey, debouncedKeyword, 1, signal),
     enabled: !isGlobal,
-    staleTime: 30_000,
-    gcTime: 5 * 60_000,
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
   const mappedCount = tab === "mapped" ? total : (otherTabQuery.data?.total ?? null);
   const unmappedCount = tab === "unmapped" ? total : (otherTabQuery.data?.total ?? null);

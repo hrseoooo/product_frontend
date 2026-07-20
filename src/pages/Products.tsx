@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import { useAuthStore } from '../store/useAuthStore';
+import api from '../api/axios';
 import type { Product } from '../App';
 
 const formatPrice = (price: number) =>
@@ -43,12 +44,11 @@ const Products = () => {
   }>({
     queryKey: ['products', debouncedSearch],
     queryFn: async () => {
-      const url = debouncedSearch
-        ? `http://localhost:1111/products?search=${encodeURIComponent(debouncedSearch)}`
-        : 'http://localhost:1111/products';
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('상품을 불러오지 못했습니다.');
-      return res.json();
+      const { data } = await api.get<{ items: Product[]; total: number }>(
+        '/products',
+        { params: debouncedSearch ? { search: debouncedSearch } : undefined },
+      );
+      return data;
     },
     enabled: !!accessToken,
   });
@@ -58,16 +58,8 @@ const Products = () => {
   // ─── 상품 등록 ────────────────────────────────────────
   const registerMutation = useMutation({
     mutationFn: async (payload: { title: string; price: number; description: string }) => {
-      const res = await fetch('http://localhost:1111/products', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error('상품 등록에 실패했습니다.');
-      return res.json();
+      const { data } = await api.post('/products', payload);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });

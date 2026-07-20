@@ -560,16 +560,9 @@ export default function Register() {
   // 제출 핸들러
   const mutation = useMutation({
     mutationFn: async (payload: any) => {
-      const response = await fetch("http://localhost:1111/products", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) throw new Error("Network response was not ok");
-      return response.json();
+      // 공용 Axios 인스턴스가 저장된 accessToken을 Bearer 헤더로 자동 첨부합니다.
+      const { data } = await api.post("/products", payload);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });

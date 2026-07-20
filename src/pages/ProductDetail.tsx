@@ -4,6 +4,7 @@ import Navigation from "../components/Navigation";
 import ProductImageSlider from "../components/ProductImageSlider";
 import BarcodeInput from "../components/BarcodeInput";
 import { loadMockBarcode } from "../utils/barcodeValidation";
+import api from "../api/axios";
 import "./ProductDetail.css";
 
 export default function ProductDetail() {
@@ -12,9 +13,8 @@ export default function ProductDetail() {
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
-      const res = await fetch(`http://localhost:1111/products/${id}`);
-      if (!res.ok) throw new Error("상품을 불러올 수 없습니다.");
-      return res.json();
+      const { data } = await api.get(`/products/${id}`);
+      return data;
     },
     enabled: !!id,
   });

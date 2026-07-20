@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Navigation from '../components/Navigation';
 import { useAuthStore } from '../store/useAuthStore';
+import api from '../api/axios';
 import type { Product } from '../App';
 
 const ProductEdit = () => {
@@ -24,9 +25,8 @@ const ProductEdit = () => {
   const { data: product, isLoading, isError } = useQuery<Product>({
     queryKey: ['product', id],
     queryFn: async () => {
-      const res = await fetch(`http://localhost:1111/products/${id}`);
-      if (!res.ok) throw new Error('상품을 불러올 수 없습니다.');
-      return res.json();
+      const { data } = await api.get<Product>(`/products/${id}`);
+      return data;
     },
     enabled: !!id && !!accessToken,
   });
@@ -45,17 +45,8 @@ const ProductEdit = () => {
   // ─── 상품 수정 (PATCH /products/:id) ─────────────────
   const updateMutation = useMutation({
     mutationFn: async (payload: { title: string; price: number; description: string }) => {
-      const res = await fetch(`http://localhost:1111/products/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error('수정에 실패했습니다.');
-      // 백엔드 update()는 반환값 없음 → res 그대로 반환
-      return res;
+      const { data } = await api.patch(`/products/${id}`, payload);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
